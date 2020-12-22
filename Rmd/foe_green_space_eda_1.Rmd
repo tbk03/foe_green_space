@@ -1,0 +1,69 @@
+---
+title: "foe_green_space_eda_1"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(readxl)
+
+theme_set(theme_minimal())
+
+```
+
+
+```{r}
+green_space <- read_excel("../Data/(FOE) Green Space Consolidated Data - England - Version 2.1.xlsx",
+                          sheet = "MSOAs V2.1")
+
+green_space
+```
+![](../images/FOE_Fig_1.PNG)
+```{r}
+
+msoa_by_rating <- green_space %>% 
+  group_by(Green_Space_Deprivation_Rating) %>% 
+  summarise(msoa_count = n())
+
+msoa_by_rating
+
+p <- ggplot(data = msoa_by_rating,
+            mapping = aes(x = Green_Space_Deprivation_Rating, y = msoa_count)
+            )
+
+p + geom_segment(mapping = aes(x = Green_Space_Deprivation_Rating,
+                               xend = Green_Space_Deprivation_Rating,
+                               y = 750,
+                               yend = msoa_count),
+                 colour = "grey50",
+                 size = 1.5
+                 ) +
+  
+  geom_point(mapping = aes(fill = Green_Space_Deprivation_Rating),
+             size = 7.5,
+             shape = 21, 
+             colour = "grey50", 
+             stroke = 1.25
+             ) +
+  
+  scale_fill_brewer(type = "div",
+                    palette = "RdYlGn",
+                    direction = -1) +
+  
+  
+  labs(title = "The number neighbourhoods in England by green space deprivation rating\n",
+       subtitle = "A - lowest level of green space deprivation ... E - highest level of green space deprivation\n",
+       x = "Green space deprivation rating\n",
+       y = "\nNumber of Neighbourhoods\n",
+       caption = "Source: Friends of the Earth, England's Green Space Gap") +
+  
+  guides(fill = FALSE) +
+  
+  coord_flip()
+```
+
