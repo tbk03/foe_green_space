@@ -17,18 +17,55 @@ theme_set(theme_minimal())
 ```
 
 
+Local Authority District to Region lookup (December 2019 used) - https://geoportal.statistics.gov.uk/datasets/3ba3daf9278f47daba0f561889c3521a_0
+
 ```{r}
 green_space <- read_excel("../Data/(FOE) Green Space Consolidated Data - England - Version 2.1.xlsx",
                           sheet = "MSOAs V2.1")
 
 green_space
+
+# FOE green space data doesn't include a variable for the region each MSOA/local authority lies within
+# So, import a look up table from the ONS, which maps between Local Authority Districts and Regions
+LAD_to_region <- read_csv("../Data/Local_Authority_District_to_Region__December_2019__Lookup_in_England.csv") %>% 
+  select(-FID, -LAD19NM)
+
+LAD_to_region
+
+# add region names and codes (from ONS look up) to FOE green space data
+green_space <- green_space %>% 
+  left_join(LAD_to_region, by = c("LA_Code" = "LAD19CD")) %>% 
+  relocate(RGN19CD, RGN19NM, .before = Area) %>% 
+  rename(region_code = RGN19CD,
+         region_name = RGN19NM)
+
+green_space
 ```
+
+```{r}
+
+
+```
+
+
 ![](../images/FOE_Fig_1.PNG)
 ```{r}
 
+title_lab <- "Numbers of neighbourhoods in England by green space\ndeprivation rating\n"
+subtitle_lab <- "E is highest level of green space deprivation\n\nA is lowest level of green space deprivation"
+x_lab <-  "Green space deprivation rating\n\n"
+y_lab <-  "\nNumber of Neighbourhoods\n"
+caption_lab <-  "Source: Friends of the Earth, England's Green Space Gap"
+
 msoa_by_rating <- green_space %>% 
   group_by(Green_Space_Deprivation_Rating) %>% 
-  summarise(msoa_count = n())
+  summarise(msoa_count = n()) %>% 
+  add_column(bar_label = c("Large or very large gardens and large or \nvery large amounts of public green space",
+                           "",
+                           "",
+                           "",
+                           "Very small gardens and very small\namounts of public green space")
+             )
 
 msoa_by_rating
 
@@ -56,14 +93,69 @@ p + geom_segment(mapping = aes(x = Green_Space_Deprivation_Rating,
                     direction = -1) +
   
   
-  labs(title = "The number neighbourhoods in England by green space deprivation rating\n",
-       subtitle = "A - lowest level of green space deprivation ... E - highest level of green space deprivation\n",
-       x = "Green space deprivation rating\n",
-       y = "\nNumber of Neighbourhoods\n",
-       caption = "Source: Friends of the Earth, England's Green Space Gap") +
+  labs(title = title_lab,
+       subtitle = subtitle_lab,
+       x = x_lab,
+       y = y_lab,
+       caption = caption_lab) +
   
   guides(fill = FALSE) +
   
+  # facet_wrap(~ Green_Space_Deprivation_Rating) +
+  
   coord_flip()
+```
+
+```{r}
+
+colour_palette <- scales::seq_gradient_pal(low = "palegreen4", high = "grey")
+colour_scale <- colour_palette(seq(0, 1, length.out = 5))
+#colour_scale <- c("springgreen4", "palegreen4", "darkseagreen3", "grey75", "grey60")
+
+p + geom_bar(mapping = aes(fill = Green_Space_Deprivation_Rating),
+             stat = "identity") +
+  
+  scale_fill_manual(values = colour_scale) +
+  
+  geom_text(mapping = aes(label = bar_label), hjust = 1.1, colour = "white", size = 3.5) +
+  
+  guides(fill = FALSE) +
+  
+  labs(title = title_lab,
+       x = x_lab,
+       y = y_lab,
+       caption = caption_lab) +
+  
+  theme(axis.text.x = element_text(face = "bold"),
+        axis.text.y = element_text(face = "bold", size = 15),
+        plot.title = element_text(face = "bold", size = 15)
+        ) +
+  
+  coord_flip()
+
+```
+```{r}
+
+msoa_by_region_and_rating <- green_space %>% 
+  group_by(region_name, Green_Space_Deprivation_Rating) %>% 
+  summarise(msoa_count = n()) %>% 
+  filter(!is.na(region_name))
+
+msoa_by_region_and_rating
+
+p <- ggplot(data = msoa_by_region_and_rating,
+            mapping = aes(x = Green_Space_Deprivation_Rating, y = msoa_count)
+            )
+
+p + geom_bar(mapping = aes(fill = Green_Space_Deprivation_Rating),
+             stat = "identity") +
+  
+  scale_fill_manual(values = colour_scale) +
+  
+  guides(fill = FALSE) +
+  
+  coord_flip() +
+  
+  facet_wrap(~ region_name, ncol = 3)
 ```
 
