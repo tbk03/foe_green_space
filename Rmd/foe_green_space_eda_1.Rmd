@@ -137,17 +137,27 @@ p + geom_bar(mapping = aes(fill = Green_Space_Deprivation_Rating),
 ```{r}
 
 msoa_by_region_and_rating <- green_space %>% 
+  
+  # count by region and rating
   group_by(region_name, Green_Space_Deprivation_Rating) %>% 
   summarise(msoa_count = n()) %>% 
-  filter(!is.na(region_name))
+  filter(!is.na(region_name)) %>% 
+  ungroup() %>% 
+
+  # calculate rating proportions by region
+  group_by(region_name) %>% 
+  mutate(prop = msoa_count / sum(msoa_count)) %>% 
+  ungroup()
 
 msoa_by_region_and_rating
 
-p <- ggplot(data = msoa_by_region_and_rating,
-            mapping = aes(x = Green_Space_Deprivation_Rating, y = msoa_count)
+plot_msoas_by_region <-  function(y_var){
+  
+  p <- ggplot(data = msoa_by_region_and_rating,
+            mapping = aes(x = Green_Space_Deprivation_Rating, y = .data[[y_var]])
             )
 
-p + geom_bar(mapping = aes(fill = Green_Space_Deprivation_Rating),
+  p + geom_bar(mapping = aes(fill = Green_Space_Deprivation_Rating),
              stat = "identity") +
   
   scale_fill_manual(values = colour_scale) +
@@ -157,5 +167,62 @@ p + geom_bar(mapping = aes(fill = Green_Space_Deprivation_Rating),
   coord_flip() +
   
   facet_wrap(~ region_name, ncol = 3)
+}
+
+plot_msoas_by_region("msoa_count")
+plot_msoas_by_region("prop")
+
+```
+```{r}
+prop_a <- msoa_by_region_and_rating %>%
+  filter(Green_Space_Deprivation_Rating == "A") %>% 
+  mutate(prop_a = prop) %>% 
+  select(region_name, prop_a)
+
+msoa_by_region_and_rating <- msoa_by_region_and_rating %>% 
+  left_join(prop_a)
+  
+msoa_by_region_and_rating  
+
+p <- ggplot(data = msoa_by_region_and_rating,
+            mapping = aes(x = reorder(region_name, prop_a), y = prop, fill = region_name)
+            )
+
+p + geom_bar(stat = "identity") +
+  facet_wrap(~ Green_Space_Deprivation_Rating) +
+  
+  guides(fill = FALSE) +
+  
+  coord_flip()
+```
+https://datacarpentry.org/r-raster-vector-geospatial/06-vector-open-shapefile-in-r/
+
+```{r}
+library(sf)
+
+msoa_sf <- st_read("../Data/Middle_Layer_Super_Output_Areas/Middle_Layer_Super_Output_Areas__December_2011__Boundaries_EW_BFE.shp")
+
+# msoa_sf <- raster::shapefile("../Data/Middle_Layer_Super_Output_Areas/Middle_Layer_Super_Output_Areas__December_2011__Boundaries_EW_BFE.shp")
+
+
+
+msoa_sf_gs <- msoa_sf %>% 
+  left_join(green_space, by = c("MSOA11CD" = "MSOA_Code"))
+
+
+
+```
+```{r, fig.width=10}
+
+p <-  ggplot(data = msoa_sf_gs %>% 
+               filter(region_name == "Yorkshire and The Humber"),
+             mapping = aes(fill = Green_Space_Deprivation_Rating)
+             )
+
+p + geom_sf(colour = "grey75") +
+  
+  scale_fill_brewer(type = "div",
+                    palette = "RdYlGn",
+                    direction = -1)
 ```
 
