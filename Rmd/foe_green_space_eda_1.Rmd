@@ -65,7 +65,9 @@ msoa_by_rating <- green_space %>%
                            "",
                            "",
                            "Very small gardens and very small\namounts of public green space")
-             )
+             ) %>% 
+  ungroup() %>% 
+  mutate(prop_rating = msoa_count / sum(msoa_count))
 
 msoa_by_rating
 
@@ -106,6 +108,11 @@ p + geom_segment(mapping = aes(x = Green_Space_Deprivation_Rating,
   coord_flip()
 ```
 
+
+## The distribution of green space deprivation ratings across England
+
+Could do with a proportion plot for this too ...
+
 ```{r}
 
 colour_palette <- scales::seq_gradient_pal(low = "palegreen4", high = "grey")
@@ -134,6 +141,37 @@ p + geom_bar(mapping = aes(fill = Green_Space_Deprivation_Rating),
   coord_flip()
 
 ```
+
+```{r}
+p <- ggplot(data = msoa_by_rating,
+            mapping = aes(x = Green_Space_Deprivation_Rating, y = prop_rating)
+            )
+
+p + geom_bar(mapping = aes(fill = Green_Space_Deprivation_Rating),
+             stat = "identity") +
+  
+  scale_fill_manual(values = colour_scale) +
+  
+  geom_text(mapping = aes(label = bar_label), hjust = 1.1, colour = "white", size = 3.5) +
+  
+  guides(fill = FALSE) +
+  
+  labs(title = "Proportion of neighbourhoods in England by green space\ndeprivation rating\n",
+       x = x_lab,
+       y = "Proportion of neighbourhoods",
+       caption = caption_lab) +
+  
+  theme(axis.text.x = element_text(face = "bold"),
+        axis.text.y = element_text(face = "bold", size = 15),
+        plot.title = element_text(face = "bold", size = 15)
+        ) +
+  
+  coord_flip()
+```
+
+
+## The distribution of green space deprivation ratings across the regions
+
 ```{r}
 
 msoa_by_region_and_rating <- green_space %>% 
@@ -158,9 +196,12 @@ plot_msoas_by_region <-  function(y_var){
             )
 
   p + geom_bar(mapping = aes(fill = Green_Space_Deprivation_Rating),
-             stat = "identity") +
+             stat = "identity",
+             colour = "grey80") +
   
-  scale_fill_manual(values = colour_scale) +
+  scale_fill_brewer(type = "div",
+                    palette = "RdYlGn",
+                    direction = -1) +
   
   guides(fill = FALSE) +
   
@@ -173,6 +214,8 @@ plot_msoas_by_region("msoa_count")
 plot_msoas_by_region("prop")
 
 ```
+
+
 ```{r}
 prop_a <- msoa_by_region_and_rating %>%
   filter(Green_Space_Deprivation_Rating == "A") %>% 
@@ -195,6 +238,11 @@ p + geom_bar(stat = "identity") +
   
   coord_flip()
 ```
+
+Could do ridgeline plots for each region - for prop rated A and proportion rated E
+
+## The geographic distribution of green space deprivation ratings
+
 https://datacarpentry.org/r-raster-vector-geospatial/06-vector-open-shapefile-in-r/
 
 ```{r}
@@ -212,17 +260,79 @@ msoa_sf_gs <- msoa_sf %>%
 
 
 ```
+
+A quick visual inspection of the MSOAs colored by their green space deprivation rating, shows a similiar patter across the regions (with the exception of London). With the the D and E ratings (oranges and reds) occurring in smaller (presumably more densely populated MSOAs) which make up urban areas. While the larger, more rural MSOAs tend to be less green space deprived, and have A or B ratings. Given the whole region of London would probably be considered a continuous urban space, it is unsurprising to observe many green space deprived MSOAs across the region/plot, with relatively few less green space deprived areas present.
+
 ```{r, fig.width=10}
 
-p <-  ggplot(data = msoa_sf_gs %>% 
-               filter(region_name == "Yorkshire and The Humber"),
-             mapping = aes(fill = Green_Space_Deprivation_Rating)
-             )
+green_space_region_plot <- function(region){
 
-p + geom_sf(colour = "grey75") +
+  p <-  ggplot(data = msoa_sf_gs %>% 
+                 filter(region_name == region),
+               mapping = aes(fill = Green_Space_Deprivation_Rating)
+               )
   
-  scale_fill_brewer(type = "div",
-                    palette = "RdYlGn",
-                    direction = -1)
+  p + geom_sf(colour = "grey75") +
+    
+    scale_fill_brewer(type = "div",
+                      palette = "RdYlGn",
+                      direction = -1) +
+    
+    labs(title = str_c("...", region))
+}
+
+region_names <- green_space %>%
+  select(region_name) %>% 
+  distinct(region_name)
+
+region_names %>%
+  filter(!is.na(region_name)) %>% 
+  pmap(~ green_space_region_plot(region = .x))
+  
 ```
 
+# Ethnicity and green space deprivation
+
+```{r}
+green_space <- green_space %>% 
+  mutate(prop_BAME_pop = BAME_Pop / Total_Pop_From_Ethnicity_Data) %>%
+  relocate(prop_BAME_pop, .after = BAME_Pop)
+
+p <- ggplot(data = green_space,
+            mapping = aes(x = Green_Space_Deprivation_Rating,
+                          y = prop_BAME_pop)
+            )
+
+p + geom_jitter(alpha = 0.5, colour = "grey75") +
+  geom_boxplot(mapping = aes(colour = Green_Space_Deprivation_Rating), alpha = 0.5, size = 1.25) +
+  
+  # scale_colour_brewer(type = "div",
+  #                     palette = "RdYlGn",
+  #                     direction = -1) +
+  
+  guides(colour = FALSE) +
+  
+  coord_flip()
+  
+```
+```{r}
+library(ggridges)
+
+p <- ggplot(data = green_space,
+            mapping = aes(y = Green_Space_Deprivation_Rating,
+                          x = prop_BAME_pop,
+                          fill = Green_Space_Deprivation_Rating)
+            )
+
+p + geom_density_ridges(alpha = 0.6, scale = 1.5) +
+  scale_fill_brewer(type = "div",
+                      palette = "RdYlGn",
+                      direction = -1) 
+```
+
+
+# Wealth and green space deprivation
+
+# Health and green space deprivation
+
+## Covid and green space deprivation
