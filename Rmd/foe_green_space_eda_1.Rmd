@@ -11,6 +11,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(tidyverse)
 library(readxl)
+library(RColorBrewer)
+library(cowplot)
 
 theme_set(theme_minimal())
 
@@ -64,7 +66,7 @@ msoa_by_rating <- green_space %>%
                            "",
                            "",
                            "",
-                           "Very small gardens and very small\namounts of public green space")
+                           "Very small gardens and very small\namounts of public green space") # add labels to be used on the plot
              ) %>% 
   ungroup() %>% 
   mutate(prop_rating = msoa_count / sum(msoa_count))
@@ -111,7 +113,6 @@ p + geom_segment(mapping = aes(x = Green_Space_Deprivation_Rating,
 
 ## The distribution of green space deprivation ratings across England
 
-Could do with a proportion plot for this too ...
 
 ```{r}
 
@@ -142,6 +143,14 @@ p + geom_bar(mapping = aes(fill = Green_Space_Deprivation_Rating),
 
 ```
 
+Below I plot the proportions of the `r sum(msoa_by_rating$msoa_count)` MSOAs analyzed given each green space deprivation rating. 
+
+* Approximately 30% of the `r sum(msoa_by_rating$msoa_count)` MSOAs rated are given one of the highest two ratings for green space deprivation , D (16.3%) and E(14.1%);
+* While 24.2% of MSOAs received the lowest rating (A). Approximately 44% of MSOAs receive one of the lowest two rating (A or B).
+* The most commonly occurring rating is C (25.4% of MSOAs), which includes neighbourhoods which are neither relatively deprived or affluent in terms of access to green space.
+* Overall, there are more relatively green space affluent neighborhoods in England (rated A and B), than there are relatively green space deprived neighborhoods (rated D and E).
+* 
+
 ```{r}
 p <- ggplot(data = msoa_by_rating,
             mapping = aes(x = Green_Space_Deprivation_Rating, y = prop_rating)
@@ -167,10 +176,20 @@ p + geom_bar(mapping = aes(fill = Green_Space_Deprivation_Rating),
         ) +
   
   coord_flip()
+
+msoa_by_rating
 ```
 
 
 ## The distribution of green space deprivation ratings across the regions
+
+The two plots below, respectively show for each region the numbers or proportion of MSOA with each green space deprivation rating. Key insights from the two plots include:
+
+* Over 45% of London's MSOAs have been given the lowest rating (E). A further approximately 30% of London's MSOAs are rated are rated D;
+* In the other regions (excluding London), the proportion of MSOAs with the lowest rating (E) in each is in the range of approximately 5-15%. The demonstrates that green space deprivation is a nationwide issue, that is perhaps unsurprisingly prominent in London (the largest city)
+* The North-East and the North-West have very similar distributions of MSOA green space deprivation ratings. With the a fairly symetrical and bell shaped distribution, centred on the C rating. Perhap reflecting a mix
+* The East of England, the South East and the South West have similar distribution, where the most commonly occurring rating is A.
+* Overall, there are considerable inequities within each region in terms of access to green space. All regions include a mix of green space deprived and affluent neighbourhoods.
 
 ```{r}
 
@@ -214,7 +233,17 @@ plot_msoas_by_region("msoa_count")
 plot_msoas_by_region("prop")
 
 ```
+```{r}
 
+```
+
+
+Below I plot again plot the proportion of MSOAs within each region receiving each green space deprivation rating. This time faceting the plot by green space deprivation rating rather than region. This makes it easier to compare across regions at a given rating. 
+
+* So we can clearly see the South East and Southwest have higher proportions of A rated MSOAs than say the North East and North West.
+* While outside of London, within each region there are similar proportion of neighbourhoods receiving the two highest green space deprivation ratings (D and E).
+
+It would be easier to read if I produced separate plots for each green space deprivation rating, as then the regions could be put in rank order.
 
 ```{r}
 prop_a <- msoa_by_region_and_rating %>%
@@ -238,6 +267,84 @@ p + geom_bar(stat = "identity") +
   
   coord_flip()
 ```
+Next I explored an alternative appraoch to considering the distribution of msoas by rating and region. I plotted the proportion of MSOAs that received a specific rating by region. In order to address the ordering issue above, I produced one plot for each green space rating. This meant addressing the challenge of how to ensure the colour associated with a given region was applied consistently across the five plots. Here is where I found the an approach to doing this, using scale_..._manual.
+
+[How to map a colour to a value of a categorical variable ...](https://www.stat.ubc.ca/~jenny/STAT545A/block17_colorsGgplot2Qualitative.html)
+
+This approach help me identify some additional insights:
+
+* For the highest green space deprivation ratings (D and E), the ranking of regions is the same: (1) London, (2) North West, (3) South East, (4) Yorkshire and the Humber and (5) West Midlands.
+* Over half of MSOAs given the highest green space deprivation rating are accounted for by just two regions: (1) London and (2) the North West.
+* 
+
+
+```{r}
+# The idea is to produce one bar chart for each green space rating, and across these plots use the same colour for a given region. 
+# choose a palette to work with
+region_pal <- brewer.pal(9, "Paired")
+
+# map the region names to a specific colour value (in a dataframe for ease)
+region_colours_df <- msoa_by_region_and_rating %>% 
+  select(region_name) %>% 
+  distinct(region_name) %>% 
+  add_column(colour = region_pal)
+
+# convert the region-colour mapping from a dataframe to a vector
+# because a vector is required by scale_fill_manual
+region_colours_vector <- region_colours_df$colour
+names(region_colours_vector) <- region_colours_df$region_name
+region_colours_vector
+
+
+plot_gsdr_prop_by_region <- function(rating = "A"){
+  
+    msoa_by_region_and_rating %>%
+      
+    # focus on the rating of interest
+    filter(Green_Space_Deprivation_Rating == rating) %>% 
+    mutate(proportion = msoa_count / sum(msoa_count)) %>%
+    
+    # create the bar chart
+    ggplot(mapping = aes(x = reorder(region_name, proportion), 
+                         y = proportion,
+                         fill = region_name
+                         )
+           ) +
+      
+    geom_col() +
+    
+    # apply region-colour mapping  
+    scale_fill_manual(values = region_colours_vector) +
+    
+    guides(fill = FALSE) +
+      
+    labs(title = str_c("MSOAs receiving green space deprivation rating: ", rating),
+         x = NULL,
+         y = str_c("Proportion of the MSOAs that recieved a rating of ", rating)
+         ) +
+    
+    coord_flip()
+}
+
+
+# produce one plot for each of the five green space deprivation ratings
+gsdr_prop_by_region_plots <- c("A", "B", "C", "D", "E") %>% 
+  map(~ plot_gsdr_prop_by_region(.x))
+
+gsdr_prop_by_region_plots
+
+```
+```{r, fig.width = 12.5, fig.height=7}
+
+d_plot <- gsdr_prop_by_region_plots[[4]] + 
+  ylim(0, 0.45) # ensure the plot axis scales match
+  
+e_plot <- gsdr_prop_by_region_plots[[5]] + 
+  ylim(0, 0.45) # ensure the plot axis scales match
+
+plot_grid(d_plot, e_plot, ncol = 2)
+```
+
 
 Could do ridgeline plots for each region - for prop rated A and proportion rated E
 
@@ -304,13 +411,16 @@ p <- ggplot(data = green_space,
             )
 
 p + geom_jitter(alpha = 0.5, colour = "grey75") +
-  geom_boxplot(mapping = aes(colour = Green_Space_Deprivation_Rating), alpha = 0.5, size = 1.25) +
+  geom_boxplot(mapping = aes(fill = Green_Space_Deprivation_Rating), 
+               alpha = 0.5, 
+               size = 1.25,
+               colour = "grey25") +
   
-  # scale_colour_brewer(type = "div",
-  #                     palette = "RdYlGn",
-  #                     direction = -1) +
+  scale_fill_brewer(type = "div",
+                      palette = "RdYlGn",
+                      direction = -1) +
   
-  guides(colour = FALSE) +
+  guides(fill = FALSE) +
   
   coord_flip()
   
