@@ -1,6 +1,8 @@
 ---
 title: "foe_green_space_eda_1"
-output: html_document
+output: 
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
@@ -13,11 +15,91 @@ library(tidyverse)
 library(readxl)
 library(RColorBrewer)
 library(cowplot)
+library(gt)
 
 theme_set(theme_minimal())
 
 ```
 
+## Objectives
+
+
+## Context
+
+**National: **
+
+* Funding challenges parks
+* Housing shortages
+* Leveling up agenda
+
+
+**Personal: **
+
+* 
+
+## The Friends of the Earth Report - "England’s Green Space Gap"
+
+* Friends of the Earth (FoE) recently released a report detailing their research into "England’s Green Space Gap".
+* As part of their research FoE developed a new approach for classifying the extent of green space deprivation across English neighbourhoods (i.e. English MSOAs).
+* Neighbourhoods are classified into five groups - A (least green space deprived), B, C, D and E (most green space deprived).
+* This classification is based on analysis of two datasets from the ONS detailing: (1) the amount garden space; and, (2) the accessibility of public green spaces (parks etc.).
+* In the report, FOE also draw on the ONS Index of Multiple Deprivation (IMD) dataset to explore the relationship between green space deprivation and demographic factors (including ethnicity and income).
+* FoE have released the dataset which informs the "England’s Green Space Gap" report. This dataset includes the FoE green space classification for each English neighborhood, alongside IMD data.
+* Reading the report and exploring the associated dataset, I was struck by a number of questions about the nature and scope of green space deprivation in England. I thought that these questions might be a good basis for an exploratory data analysis, which might extend upon the FoE analysis and contribute to the wider debate on maintaining and extending access to green space during the post-covid recovery.
+
+## Questions for Exploratory Data Analysis
+
+**Where is green space deprivation experienced?**
+
+* *Green space deprivation: *
+  + What is the scale of the green space deprivation problem in England?
+    - How many neighborhoods could be considered green space deprived?
+    - How many people live in green space deprived neighborhoods?
+    - How are FoE's green space deprivation ratings distributed?
+  + [Is green space deprivation an urban problem? 2001 classification](https://geoportal.statistics.gov.uk/datasets/rural-urban-classification-2001-of-msoas-in-england-and-wales)?
+    - Have FoE defined green space deprivation as an urban problem?
+    - Does the underpinning data justify this? 
+  + How do the two dimensions of green space deprivation (availability of garden space and accessibility of public green space) relate to each other?
+    - Is there a trade-off between garden space and access to public green space?
+  + How is green space deprivation distributed across regions and a local authorities in England?
+    - Where are the cities/regions where action is most needed?
+    - Which local authorities have the highest/lowest proportion of D and E rated neighborhoods?
+    
+**Who is living in green space deprivation?**
+
+* *Ethnicity and green space deprivation: *
+  + Are people from a BAME background  more likely, than white people, to experience green space deprivation?
+  + Is the proportion of BAME population within an MSOA associated with the MSOA's green space deprivation rating?
+* *Age and green space deprivation: *
+  + Are different age groups more or less likely to experience green space deprivation?
+* *Wealth and green space deprivation: *
+
+**The relationship between green space deprivation and health?**
+
+* *Covid and green space deprivation: *
+  + Have populations living in green space deprived area experienced a greater covid-19 burden, relative to people living in green space affluent areas.
+* *Life expectancy and green space deprivation: *
+
+**Ideas: **
+
+* Plot idea - garden space vs. access to public green space - colour by rating ...
+* Use above and below median income to facet plots (as in covid-19) ... 
+* Is there an equivalent approach for ethnicity? Where might the boundary be drawn (the national average proportion of BAME population)?
+* Green space affluent vs. green space deprived?
+
+
+## Data sources used
+```{r}
+
+data_sources <- tribble(
+  ~file_name, ~name, ~notes, ~url,
+  "(FOE) Green Space Consolidated Data - England - Version 2.1.xlsx",   "green_space", "...", "https://friendsoftheearth.uk/nature/green-space-consolidated-data-england",
+  "Local_Authority_District_to_Region__December_2019__Lookup_in_England.csv",   "LAD_to_region", "used the December 2019 version", "https://geoportal.statistics.gov.uk/datasets/3ba3daf9278f47daba0f561889c3521a_0"
+)
+
+data_sources
+
+```
 
 Local Authority District to Region lookup (December 2019 used) - https://geoportal.statistics.gov.uk/datasets/3ba3daf9278f47daba0f561889c3521a_0
 
@@ -352,7 +434,7 @@ Could do ridgeline plots for each region - for prop rated A and proportion rated
 
 https://datacarpentry.org/r-raster-vector-geospatial/06-vector-open-shapefile-in-r/
 
-```{r}
+```{r, eval=FALSE}
 library(sf)
 
 msoa_sf <- st_read("../Data/Middle_Layer_Super_Output_Areas/Middle_Layer_Super_Output_Areas__December_2011__Boundaries_EW_BFE.shp")
@@ -370,7 +452,7 @@ msoa_sf_gs <- msoa_sf %>%
 
 A quick visual inspection of the MSOAs colored by their green space deprivation rating, shows a similiar patter across the regions (with the exception of London). With the the D and E ratings (oranges and reds) occurring in smaller (presumably more densely populated MSOAs) which make up urban areas. While the larger, more rural MSOAs tend to be less green space deprived, and have A or B ratings. Given the whole region of London would probably be considered a continuous urban space, it is unsurprising to observe many green space deprived MSOAs across the region/plot, with relatively few less green space deprived areas present.
 
-```{r, fig.width=10}
+```{r, fig.width=10, eval=FALSE}
 
 green_space_region_plot <- function(region){
 
