@@ -65,7 +65,7 @@ theme_set(theme_minimal())
     - Where are the cities/regions where action is most needed?
     - Which local authorities have the highest/lowest proportion of D and E rated neighborhoods?
     
-**Who is living in green space deprivation?**
+**Who is living with green space deprivation?**
 
 * *Ethnicity and green space deprivation: *
   + Are people from a BAME background  more likely, than white people, to experience green space deprivation?
@@ -93,8 +93,8 @@ theme_set(theme_minimal())
 
 data_sources <- tribble(
   ~file_name, ~name, ~notes, ~url,
-  "(FOE) Green Space Consolidated Data - England - Version 2.1.xlsx",   "green_space", "...", "https://friendsoftheearth.uk/nature/green-space-consolidated-data-england",
-  "Local_Authority_District_to_Region__December_2019__Lookup_in_England.csv",   "LAD_to_region", "used the December 2019 version", "https://geoportal.statistics.gov.uk/datasets/3ba3daf9278f47daba0f561889c3521a_0"
+  "(FOE) Green Space Consolidated Data - England - Version 2.1.xlsx", "green_space", "...", "https://friendsoftheearth.uk/nature/green-space-consolidated-data-england",
+  "Local_Authority_District_to_Region__December_2019__Lookup_in_England.csv", "LAD_to_region", "used the December 2019 version", "https://geoportal.statistics.gov.uk/datasets/3ba3daf9278f47daba0f561889c3521a_0"
 )
 
 data_sources
@@ -132,98 +132,94 @@ green_space
 ```
 
 
-![](../images/FOE_Fig_1.PNG)
-```{r}
 
-title_lab <- "Numbers of neighbourhoods in England by green space\ndeprivation rating\n"
-subtitle_lab <- "E is highest level of green space deprivation\n\nA is lowest level of green space deprivation"
-x_lab <-  "Green space deprivation rating\n\n"
-y_lab <-  "\nNumber of Neighbourhoods\n"
-caption_lab <-  "Source: Friends of the Earth, England's Green Space Gap"
-
-msoa_by_rating <- green_space %>% 
-  group_by(Green_Space_Deprivation_Rating) %>% 
-  summarise(msoa_count = n()) %>% 
-  add_column(bar_label = c("Large or very large gardens and large or \nvery large amounts of public green space",
-                           "",
-                           "",
-                           "",
-                           "Very small gardens and very small\namounts of public green space") # add labels to be used on the plot
-             ) %>% 
-  ungroup() %>% 
-  mutate(prop_rating = msoa_count / sum(msoa_count))
-
-msoa_by_rating
-
-p <- ggplot(data = msoa_by_rating,
-            mapping = aes(x = Green_Space_Deprivation_Rating, y = msoa_count)
-            )
-
-p + geom_segment(mapping = aes(x = Green_Space_Deprivation_Rating,
-                               xend = Green_Space_Deprivation_Rating,
-                               y = 750,
-                               yend = msoa_count),
-                 colour = "grey50",
-                 size = 1.5
-                 ) +
-  
-  geom_point(mapping = aes(fill = Green_Space_Deprivation_Rating),
-             size = 7.5,
-             shape = 21, 
-             colour = "grey50", 
-             stroke = 1.25
-             ) +
-  
-  scale_fill_brewer(type = "div",
-                    palette = "RdYlGn",
-                    direction = -1) +
-  
-  
-  labs(title = title_lab,
-       subtitle = subtitle_lab,
-       x = x_lab,
-       y = y_lab,
-       caption = caption_lab) +
-  
-  guides(fill = FALSE) +
-  
-  # facet_wrap(~ Green_Space_Deprivation_Rating) +
-  
-  coord_flip()
-```
 
 
 ## The distribution of green space deprivation ratings across England
 
 
 ```{r}
+# for each green space deprivation rate calculate the numbers and proportions of msoas
+msoa_by_rating <- green_space %>% 
+  group_by(Green_Space_Deprivation_Rating) %>% 
+  summarise(msoa_count = n()) %>% 
+
+  ungroup() %>% 
+  mutate(prop_msoa = msoa_count / sum(msoa_count))
+
+# for each green space deprivation rate calculate the numbers and proportions of the population
+pop_by_rating <- green_space %>% 
+  group_by(Green_Space_Deprivation_Rating) %>% 
+  summarise(population = sum(Population_IMD)) %>% 
+  
+  ungroup() %>% 
+  mutate(prop_pop = population / sum(population))
+
+# merge the msoa and population tables
+msoa_and_pop_by_rating <- msoa_by_rating %>% 
+  left_join(pop_by_rating, by = c("Green_Space_Deprivation_Rating" = "Green_Space_Deprivation_Rating")) %>% 
+  add_column(bar_label =  bar_labels) %>% # add labels to be used on the plot 
+  
+  mutate(prop_diff = prop_msoa - prop_pop)
+
+msoa_and_pop_by_rating
+
+```
+
+
+
+```{r}
+gs_bar <- function(){
+  
+  list(
+      geom_col(),
+      
+      scale_fill_manual(values = colour_scale),
+      
+      geom_text(mapping = aes(label = bar_label), hjust = 1.1, colour = "white", size = 3.5),
+      
+      guides(fill = FALSE),
+      
+      theme(axis.text.x = element_text(face = "bold"),
+            axis.text.y = element_text(face = "bold", size = 15),
+            plot.title = element_text(face = "bold", size = 15)
+            ),
+      
+      coord_flip()
+  )
+  
+}
+
+bar_labels <- c("Large or very large gardens and large or \nvery large amounts of public green space",
+                           "",
+                           "",
+                           "",
+                           "Very small gardens and very small\namounts of public green space")
+
+x_lab <-  "Green space deprivation rating\n\n"
+caption_lab <-  "Source: Friends of the Earth, England's Green Space Gap"
 
 colour_palette <- scales::seq_gradient_pal(low = "palegreen4", high = "grey")
 colour_scale <- colour_palette(seq(0, 1, length.out = 5))
-#colour_scale <- c("springgreen4", "palegreen4", "darkseagreen3", "grey75", "grey60")
-
-p + geom_bar(mapping = aes(fill = Green_Space_Deprivation_Rating),
-             stat = "identity") +
-  
-  scale_fill_manual(values = colour_scale) +
-  
-  geom_text(mapping = aes(label = bar_label), hjust = 1.1, colour = "white", size = 3.5) +
-  
-  guides(fill = FALSE) +
-  
-  labs(title = title_lab,
-       x = x_lab,
-       y = y_lab,
-       caption = caption_lab) +
-  
-  theme(axis.text.x = element_text(face = "bold"),
-        axis.text.y = element_text(face = "bold", size = 15),
-        plot.title = element_text(face = "bold", size = 15)
-        ) +
-  
-  coord_flip()
 
 ```
+
+```{r}
+p <- ggplot(data = msoa_and_pop_by_rating,
+            mapping = aes(x = Green_Space_Deprivation_Rating, 
+                          y = msoa_count,
+                          fill = Green_Space_Deprivation_Rating)
+            )
+
+p + gs_bar() +
+  
+  labs(title = "Numbers of neighbourhoods in England by green space\ndeprivation rating\n",
+       x = x_lab,
+       y = "\nNumber of Neighbourhoods\n",
+       caption = caption_lab) 
+
+```
+
 
 Below I plot the proportions of the `r sum(msoa_by_rating$msoa_count)` MSOAs analyzed given each green space deprivation rating. 
 
@@ -234,33 +230,41 @@ Below I plot the proportions of the `r sum(msoa_by_rating$msoa_count)` MSOAs ana
 * 
 
 ```{r}
-p <- ggplot(data = msoa_by_rating,
-            mapping = aes(x = Green_Space_Deprivation_Rating, y = prop_rating)
+p <- ggplot(data = msoa_and_pop_by_rating,
+            mapping = aes(x = Green_Space_Deprivation_Rating, 
+                          y = prop_msoa,
+                          fill = Green_Space_Deprivation_Rating)
             )
 
-p + geom_bar(mapping = aes(fill = Green_Space_Deprivation_Rating),
-             stat = "identity") +
-  
-  scale_fill_manual(values = colour_scale) +
-  
-  geom_text(mapping = aes(label = bar_label), hjust = 1.1, colour = "white", size = 3.5) +
-  
-  guides(fill = FALSE) +
-  
+p + gs_bar() +
+
   labs(title = "Proportion of neighbourhoods in England by green space\ndeprivation rating\n",
        x = x_lab,
        y = "Proportion of neighbourhoods",
-       caption = caption_lab) +
+       caption = caption_lab)
   
-  theme(axis.text.x = element_text(face = "bold"),
-        axis.text.y = element_text(face = "bold", size = 15),
-        plot.title = element_text(face = "bold", size = 15)
-        ) +
-  
-  coord_flip()
 
 msoa_by_rating
 ```
+
+
+
+```{r}
+
+p <- ggplot(data = msoa_and_pop_by_rating,
+            mapping = aes(x = Green_Space_Deprivation_Rating,
+                          y = population,
+                          fill = Green_Space_Deprivation_Rating)
+            )
+
+p + gs_bar() +
+  
+  labs(title = "The population living within neighbourhoods with each\ngreen space deprivation rating\n",
+       y = "\nPopulation",
+       x = x_lab)
+
+```
+
 
 
 ## The distribution of green space deprivation ratings across the regions
@@ -528,3 +532,47 @@ p + geom_density_ridges(alpha = 0.6, scale = 1.5) +
 # Health and green space deprivation
 
 ## Covid and green space deprivation
+
+
+# Archived code
+
+![](../images/FOE_Fig_1.PNG)
+```{r, eval=FALSE}
+
+
+p <- ggplot(data = msoa_by_rating,
+            mapping = aes(x = Green_Space_Deprivation_Rating, y = msoa_count)
+            )
+
+p + geom_segment(mapping = aes(x = Green_Space_Deprivation_Rating,
+                               xend = Green_Space_Deprivation_Rating,
+                               y = 750,
+                               yend = msoa_count),
+                 colour = "grey50",
+                 size = 1.5
+                 ) +
+  
+  geom_point(mapping = aes(fill = Green_Space_Deprivation_Rating),
+             size = 7.5,
+             shape = 21, 
+             colour = "grey50", 
+             stroke = 1.25
+             ) +
+  
+  scale_fill_brewer(type = "div",
+                    palette = "RdYlGn",
+                    direction = -1) +
+  
+  
+  labs(title = title_lab,
+       subtitle = subtitle_lab,
+       x = x_lab,
+       y = y_lab,
+       caption = caption_lab) +
+  
+  guides(fill = FALSE) +
+  
+  # facet_wrap(~ Green_Space_Deprivation_Rating) +
+  
+  coord_flip()
+```
