@@ -137,15 +137,21 @@ green_space
 
 ## The distribution of green space deprivation ratings across England
 
+```{r}
+library(janitor)
+
+green_space %>% 
+  tabyl(Green_Space_Deprivation_Rating)
+```
+
+
 
 ```{r}
 # for each green space deprivation rate calculate the numbers and proportions of msoas
 msoa_by_rating <- green_space %>% 
-  group_by(Green_Space_Deprivation_Rating) %>% 
-  summarise(msoa_count = n()) %>% 
-
-  ungroup() %>% 
-  mutate(prop_msoa = msoa_count / sum(msoa_count))
+  tabyl(Green_Space_Deprivation_Rating) %>% 
+  rename(n_msoa = n,
+         percent_msoa = percent)
 
 # for each green space deprivation rate calculate the numbers and proportions of the population
 pop_by_rating <- green_space %>% 
@@ -153,17 +159,57 @@ pop_by_rating <- green_space %>%
   summarise(population = sum(Population_IMD)) %>% 
   
   ungroup() %>% 
-  mutate(prop_pop = population / sum(population))
+  mutate(percent_pop = population / sum(population))
 
 # merge the msoa and population tables
 msoa_and_pop_by_rating <- msoa_by_rating %>% 
-  left_join(pop_by_rating, by = c("Green_Space_Deprivation_Rating" = "Green_Space_Deprivation_Rating")) %>% 
-  add_column(bar_label =  bar_labels) %>% # add labels to be used on the plot 
+  left_join(pop_by_rating, by = c("Green_Space_Deprivation_Rating" = "Green_Space_Deprivation_Rating"))
+
+msoa_and_pop_by_rating %>%
   
-  mutate(prop_diff = prop_msoa - prop_pop)
+  add_column(group = c(1,1,1,2,2)) %>% 
+  arrange(desc(Green_Space_Deprivation_Rating)) %>% 
+  
+  gt(rowname_col = "Green_Space_Deprivation_Rating", groupname_col = "group") %>%
+  
+    summary_rows(
+    groups = TRUE,
+    columns = vars(population),
+    fns = list(
+      total = ~sum(.)),
+    formatter = fmt_number,
+    scale_by = 1e-6) %>%
+  
+    summary_rows(
+    groups = TRUE,
+    columns = vars(n_msoa),
+    fns = list(
+      total = ~sum(.)),
+    formatter = fmt_number,
+    ) %>%
+  
+  summary_rows(
+    groups = TRUE,
+    columns = vars(percent_msoa, percent_pop),
+    fns = list(
+      total = ~sum(.)),
+    formatter = fmt_percent,
+    ) %>%
+  
+  tab_stubhead(label = html("Green Space<br>Deprivation <br>Rating")) %>%
+  
+  fmt_percent(starts_with("percent_"), decimals = 0) %>%
+  fmt_number(vars(population), scale_by = 1e-6) %>% 
 
-msoa_and_pop_by_rating
+  # cols_merge(columns = vars(n_msoa, percent_msoa),
+  #            pattern = "{1} ({2})") %>% 
+  # cols_merge(columns = vars(population, percent_pop),
+  #            pattern = "{1} ({2})") %>% 
 
+  
+  cols_label(n_msoa = "Neighbourhoods",
+             population = "Population (Millions)")
+  
 ```
 
 
