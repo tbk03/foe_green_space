@@ -97,7 +97,8 @@ data_sources <- tribble(
   "Local_Authority_District_to_Region__December_2019__Lookup_in_England.csv", "LAD_to_region", "used the December 2019 version", "https://geoportal.statistics.gov.uk/datasets/3ba3daf9278f47daba0f561889c3521a_0"
 )
 
-data_sources
+data_sources %>% 
+  gt()
 
 ```
 
@@ -143,13 +144,14 @@ library(janitor)
 green_space %>% 
   tabyl(Green_Space_Deprivation_Rating)
 ```
-
+https://themockup.blog/posts/2020-09-04-10-table-rules-in-r/
 
 
 ```{r}
 # for each green space deprivation rate calculate the numbers and proportions of msoas
 msoa_by_rating <- green_space %>% 
-  tabyl(Green_Space_Deprivation_Rating) %>% 
+  tabyl(Green_Space_Deprivation_Rating) %>%
+  mutate(percent = percent * 100) %>% 
   rename(n_msoa = n,
          percent_msoa = percent)
 
@@ -159,56 +161,114 @@ pop_by_rating <- green_space %>%
   summarise(population = sum(Population_IMD)) %>% 
   
   ungroup() %>% 
-  mutate(percent_pop = population / sum(population))
+  mutate(percent_pop = population / sum(population) * 100)
 
 # merge the msoa and population tables
 msoa_and_pop_by_rating <- msoa_by_rating %>% 
   left_join(pop_by_rating, by = c("Green_Space_Deprivation_Rating" = "Green_Space_Deprivation_Rating"))
 
+
+colour_palette <- scales::seq_gradient_pal(low = "palegreen4", high = "grey")
+colour_scale <- colour_palette(seq(0, 1, length.out = 5))
+
 msoa_and_pop_by_rating %>%
   
   add_column(group = c(1,1,1,2,2)) %>% 
   arrange(desc(Green_Space_Deprivation_Rating)) %>% 
-  
+
+
   gt(rowname_col = "Green_Space_Deprivation_Rating", groupname_col = "group") %>%
   
-    summary_rows(
-    groups = TRUE,
-    columns = vars(population),
-    fns = list(
-      total = ~sum(.)),
-    formatter = fmt_number,
-    scale_by = 1e-6) %>%
+    # format columns
+    fmt_number(starts_with("percent_"), decimals = 0) %>%
+    fmt_number(vars(population), scale_by = 1e-6) %>% 
   
-    summary_rows(
-    groups = TRUE,
-    columns = vars(n_msoa),
-    fns = list(
-      total = ~sum(.)),
-    formatter = fmt_number,
-    ) %>%
+    tab_style(style = list(cell_text(style = "italic")),
+              locations = cells_body(columns = c(3,5))
+              ) %>% 
   
-  summary_rows(
-    groups = TRUE,
-    columns = vars(percent_msoa, percent_pop),
-    fns = list(
-      total = ~sum(.)),
-    formatter = fmt_percent,
-    ) %>%
+    # add spanners
+    tab_spanner(label = "Neighbourhoods",
+                columns = 2:3) %>% 
   
-  tab_stubhead(label = html("Green Space<br>Deprivation <br>Rating")) %>%
+    tab_spanner(label = "Population",
+                columns = 4:5) %>% 
   
-  fmt_percent(starts_with("percent_"), decimals = 0) %>%
-  fmt_number(vars(population), scale_by = 1e-6) %>% 
+  
+    # create and format summary rows for each group
+    summary_rows(groups = TRUE,
+                 columns = vars(population),
+                 fns = list(Total = ~sum(.)),
+                 formatter = fmt_number,
+                 scale_by = 1e-6) %>%
+  
+    summary_rows(groups = TRUE,
+                 columns = vars(n_msoa),
+                 fns = list(Total = ~sum(.)),
+                 formatter = fmt_number,
+                 decimals = 0
+                 ) %>%
 
-  # cols_merge(columns = vars(n_msoa, percent_msoa),
-  #            pattern = "{1} ({2})") %>% 
-  # cols_merge(columns = vars(population, percent_pop),
-  #            pattern = "{1} ({2})") %>% 
-
+      
+    # # merge n and percent columns
+    # cols_merge(columns = vars(n_msoa, percent_msoa),
+    #            pattern = "{1} ({2})") %>%
+    # cols_merge(columns = vars(population, percent_pop),
+    #            pattern = "{1} ({2})") %>%
   
-  cols_label(n_msoa = "Neighbourhoods",
-             population = "Population (Millions)")
+
+    # colour cells
+    tab_style(style = list(cell_fill(color = colour_scale[[5]])),
+              locations = cells_body(rows = Green_Space_Deprivation_Rating == "E")
+              ) %>% 
+
+    tab_style(style = list(cell_fill(color = colour_scale[[4]])),
+              locations = cells_body(rows = Green_Space_Deprivation_Rating == "D")
+              ) %>% 
+  
+    tab_style(style = list(cell_fill(color = colour_scale[[3]])),
+              locations = cells_body(rows = Green_Space_Deprivation_Rating == "C")
+              ) %>% 
+  
+    tab_style(style = list(cell_fill(color = colour_scale[[2]])),
+              locations = cells_body(rows = Green_Space_Deprivation_Rating == "B")
+              ) %>% 
+    tab_style(style = list(cell_fill(color = colour_scale[[1]])),
+              locations = cells_body(rows = Green_Space_Deprivation_Rating == "A")
+              ) %>% 
+    
+    # add labels
+    tab_stubhead(label = html("Green Space<br>Deprivation Rating")) %>%  
+    cols_label(n_msoa = "Number",
+               percent_msoa = "%",
+               population = "Millions of people",
+               percent_pop = "%") %>% 
+    tab_source_note(source_note = md("**Source:** Friends of the Earth")) %>% 
+    tab_header(title = md("**Green Space Deprivation in England**"),
+               subtitle = md("*Understanding the scale of the problem*")
+               ) %>% 
+
+    # adjust table appearance
+    tab_options(heading.align = "left",
+                heading.subtitle.font.size = 12,
+                table.border.top.color = "black",
+                column_labels.border.bottom.color = "black",
+                column_labels.border.bottom.width = 3,
+                column_labels.background.color = "#EDEDED", 
+                summary_row.background.color = "#EDEDED",
+                row_group.background.color = "#EDEDED",
+                stub.background.color = "#EDEDED") %>% 
+  
+    tab_style(style = list(cell_text(weight = "bold", size = 14)),
+                           locations = cells_column_labels(everything())
+                           ) %>% 
+  
+    tab_style(style = list(cell_text(weight = "bold", size = 16)),
+                             locations = list(cells_stubhead(), cells_column_spanners(spanners = c("Neighbourhoods", "Population")))
+                             )
+              
+              
+  
   
 ```
 
@@ -245,8 +305,7 @@ bar_labels <- c("Large or very large gardens and large or \nvery large amounts o
 x_lab <-  "Green space deprivation rating\n\n"
 caption_lab <-  "Source: Friends of the Earth, England's Green Space Gap"
 
-colour_palette <- scales::seq_gradient_pal(low = "palegreen4", high = "grey")
-colour_scale <- colour_palette(seq(0, 1, length.out = 5))
+
 
 ```
 
