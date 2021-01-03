@@ -16,6 +16,8 @@ library(readxl)
 library(RColorBrewer)
 library(cowplot)
 library(gt)
+library(ggridges)
+library(janitor)
 
 theme_set(theme_minimal())
 
@@ -106,9 +108,13 @@ Local Authority District to Region lookup (December 2019 used) - https://geoport
 
 ```{r}
 green_space <- read_excel("../Data/(FOE) Green Space Consolidated Data - England - Version 2.1.xlsx",
-                          sheet = "MSOAs V2.1")
+                          sheet = "MSOAs V2.1") %>%
+  # inconsistent naming conventions for variables are used in the source data
+  # some need to clean names for consitency
+  clean_names()
 
-green_space
+green_space %>% 
+  select(la_code)
 
 # FOE green space data doesn't include a variable for the region each MSOA/local authority lies within
 # So, import a look up table from the ONS, which maps between Local Authority Districts and Regions
@@ -119,30 +125,18 @@ LAD_to_region
 
 # add region names and codes (from ONS look up) to FOE green space data
 green_space <- green_space %>% 
-  left_join(LAD_to_region, by = c("LA_Code" = "LAD19CD")) %>% 
-  relocate(RGN19CD, RGN19NM, .before = Area) %>% 
+  left_join(LAD_to_region, by = c("la_code" = "LAD19CD")) %>% 
+  relocate(RGN19CD, RGN19NM, .before = area) %>% 
   rename(region_code = RGN19CD,
          region_name = RGN19NM)
 
 green_space
 ```
-
-```{r}
-
-
-```
-
-
-
-
-
 ## The distribution of green space deprivation ratings across England
 
 ```{r}
-library(janitor)
-
 green_space %>% 
-  tabyl(Green_Space_Deprivation_Rating)
+  tabyl(green_space_deprivation_rating)
 ```
 https://themockup.blog/posts/2020-09-04-10-table-rules-in-r/
 http://applied-r.com/r-color-tables/
@@ -158,7 +152,7 @@ to add?
 colour_gs_row <- function(df, colour, rating){
   df %>% 
     tab_style(style = list(cell_fill(color = colour_scale[[colour]])),
-                locations = cells_body(rows = Green_Space_Deprivation_Rating == rating)
+                locations = cells_body(rows = green_space_deprivation_rating == rating)
                 )
 }
 
@@ -185,31 +179,31 @@ a_b_c_group_label <-  "\nAction needed to protect access to green space"
 
 # for each green space deprivation rate calculate the numbers and proportions of msoas
 msoa_by_rating <- green_space %>% 
-  tabyl(Green_Space_Deprivation_Rating) %>%
+  tabyl(green_space_deprivation_rating) %>%
   mutate(percent = percent * 100) %>% 
   rename(n_msoa = n,
          percent_msoa = percent)
 
 # for each green space deprivation rate calculate the numbers and proportions of the population
 pop_by_rating <- green_space %>% 
-  group_by(Green_Space_Deprivation_Rating) %>% 
-  summarise(population = sum(Population_IMD)) %>% 
+  group_by(green_space_deprivation_rating) %>% 
+  summarise(population = sum(population_imd)) %>% 
   
   ungroup() %>% 
   mutate(percent_pop = population / sum(population) * 100)
 
 # merge the msoa and population tables
 msoa_and_pop_by_rating <- msoa_by_rating %>% 
-  left_join(pop_by_rating, by = c("Green_Space_Deprivation_Rating" = "Green_Space_Deprivation_Rating"))
+  left_join(pop_by_rating, by = c("green_space_deprivation_rating" = "green_space_deprivation_rating"))
 
 
 msoa_and_pop_by_rating %>%
   
   add_column(group = c(rep(a_b_c_group_label, 3), rep(d_e_group_label, 2))) %>% 
-  arrange(desc(Green_Space_Deprivation_Rating)) %>% 
+  arrange(desc(green_space_deprivation_rating)) %>% 
 
 
-  gt(rowname_col = "Green_Space_Deprivation_Rating", groupname_col = "group") %>%
+  gt(rowname_col = "green_space_deprivation_rating", groupname_col = "group") %>%
   
     # add spanners
     tab_spanner(label = "Neighbourhoods",
@@ -298,7 +292,153 @@ msoa_and_pop_by_rating %>%
   
 ```
 
+```{r}
+# As a starting point - select the three indices (GSDI_...) that make up the rating (and the data that these indices are calculated from)
+gs_dep_by_rating <- green_space %>% 
 
+  select(green_space_deprivation_rating, 
+         gsdi_avg_area, green_space_area_per_capita,
+         gsdi_access, pcnt_pop_area_with_go_space_access, 
+         gsdi_garden, garden_area_per_capita)
+
+# trying to understand what a typical MSOA in each rating looks like ...
+gs_dep_by_rating %>% 
+  
+  group_by(green_space_deprivation_rating) %>%
+  summarise(mean_gs_per_c = mean(green_space_area_per_capita, na.rm = TRUE),
+            median_gs_per_c = median(green_space_area_per_capita, na.rm = TRUE),
+            mean_perc_pop_with_gs_access = mean(pcnt_pop_area_with_go_space_access, na.rm = TRUE),
+            median_perc_pop_with_gs_access = median(pcnt_pop_area_with_go_space_access, na.rm = TRUE),
+            mean_gard_area_per_C = mean(garden_area_per_capita, na.rm = TRUE),
+            median_gard_area_per_C = median(garden_area_per_capita, na.rm = TRUE)
+            )
+
+
+```
+
+## Green space area per capita
+dealing with outliers Boxplot shows outliers at 1.5*IQR + Q3 - they are part of the natural variability of the population, so it seems appropriate to retain the outliers, but zoom on the graphs because the . 
+
+```{r}
+box_plot_mapping = aes(x = green_space_area_per_capita,
+                       y = green_space_deprivation_rating)
+
+# may be plotting will help to understand what a typical MSOA in each rating looks like
+p <- ggplot(data = gs_dep_by_rating,
+            mapping = box_plot_mapping
+            )
+
+p + geom_boxplot(aes(group = green_space_deprivation_rating))
+
+# the outliers (in terms of very high values of green space per capita) are making it difficult to get a handle on the distributions
+# so identify the approximate value where outliers begin
+p <- ggplot(data = gs_dep_by_rating,
+            mapping = aes(x = green_space_area_per_capita))
+
+p + geom_boxplot() +
+  xlim(0, 100)
+
+# taking the dataset as whole outliers begin at approx. 62.5m2 gs per capita
+# this seems like a low value to use as a cut off point for outliers
+# so lets look at group A in detail
+p <- ggplot(data = gs_dep_by_rating %>% 
+              filter(green_space_deprivation_rating == "A"),
+            mapping = box_plot_mapping)
+
+p + geom_boxplot() +
+  xlim(0, 1000)
+
+# outliers from rating group A start at approximately 500m2 gs per capita
+```
+
+not sure on whether or not to filter out outliers
+
+```{r}
+p <- ggplot(data = gs_dep_by_rating, #%>% 
+            #filter(green_space_area_per_capita < 500),
+            mapping = box_plot_mapping
+            )
+
+p + geom_jitter(colour = "grey80") +
+  geom_boxplot(mapping = aes(group = green_space_deprivation_rating, 
+                               fill = green_space_deprivation_rating
+                               ),
+                 alpha = 0.5
+                 ) + 
+  xlim(0, 500) +
+  
+  guides(fill = FALSE)
+                 
+```
+```{r}
+p <- ggplot(data = gs_dep_by_rating, #%>% 
+              #filter(green_space_area_per_capita < 500),
+            mapping = aes(x = green_space_area_per_capita,
+                          y = green_space_deprivation_rating,
+                          fill = green_space_deprivation_rating)
+            )
+
+p + geom_density_ridges(alpha = 0.5) + xlim(0,200) + 
+  
+  
+  guides(fill = FALSE)
+```
+So, I wondered if the outliers/very long tail are a result of areas with small populations and/very large areas of green space.
+
+```{r}
+p <- ggplot(data = green_space,
+            mapping = aes(y = population_imd,
+                          colour = green_space_deprivation_rating)
+            )
+
+p + geom_point(mapping = aes(x = green_space_area), 
+               alpha = 0.5) +
+  
+  labs(colour = "GS rating") +
+  facet_wrap(~green_space_deprivation_rating)
+
+
+p + geom_point(mapping = aes(x = log(green_space_area)),
+               alpha = 0.5) +
+  labs(colour = "GS rating")
+```
+```{r}
+p <- ggplot(data = green_space, 
+            mapping = aes(x = log(green_space_area),
+                          )
+            )
+p + geom_density()
+
+
+p <- ggplot(data = green_space, 
+            mapping = aes(x = population_imd,
+                          )
+            )
+p + geom_density()
+```
+
+So, it looks like the it is the green space area has much more influence on green space area per capita, than population.
+
+```{r}
+p <- ggplot(data = green_space,
+            mapping = aes(y = green_space_area_per_capita,
+                          colour = green_space_deprivation_rating)
+            )
+
+p + geom_point(mapping = aes(x = green_space_area), 
+               alpha = 0.5) +
+  labs(colour = "GS rating")
+
+p + geom_point(mapping = aes(x = population_imd,
+                             y = log(green_space_area_per_capita)), 
+               alpha = 0.5) +
+  labs(colour = "GS rating")
+```
+```{r}
+p <- ggplot(data = green_space,
+            mapping = aes(x = green_space_area))
+```
+ 
 
 ```{r}
 gs_bar <- function(){
@@ -337,9 +477,9 @@ caption_lab <-  "Source: Friends of the Earth, England's Green Space Gap"
 
 ```{r}
 p <- ggplot(data = msoa_and_pop_by_rating,
-            mapping = aes(x = Green_Space_Deprivation_Rating, 
+            mapping = aes(x = green_space_deprivation_rating, 
                           y = msoa_count,
-                          fill = Green_Space_Deprivation_Rating)
+                          fill = green_space_deprivation_rating)
             )
 
 p + gs_bar() +
@@ -362,9 +502,9 @@ Below I plot the proportions of the `r sum(msoa_by_rating$msoa_count)` MSOAs ana
 
 ```{r}
 p <- ggplot(data = msoa_and_pop_by_rating,
-            mapping = aes(x = Green_Space_Deprivation_Rating, 
+            mapping = aes(x = green_space_deprivation_rating, 
                           y = prop_msoa,
-                          fill = Green_Space_Deprivation_Rating)
+                          fill = green_space_deprivation_rating)
             )
 
 p + gs_bar() +
@@ -383,9 +523,9 @@ msoa_by_rating
 ```{r}
 
 p <- ggplot(data = msoa_and_pop_by_rating,
-            mapping = aes(x = Green_Space_Deprivation_Rating,
+            mapping = aes(x = green_space_deprivation_rating,
                           y = population,
-                          fill = Green_Space_Deprivation_Rating)
+                          fill = green_space_deprivation_rating)
             )
 
 p + gs_bar() +
@@ -413,7 +553,7 @@ The two plots below, respectively show for each region the numbers or proportion
 msoa_by_region_and_rating <- green_space %>% 
   
   # count by region and rating
-  group_by(region_name, Green_Space_Deprivation_Rating) %>% 
+  group_by(region_name, green_space_deprivation_rating) %>% 
   summarise(msoa_count = n()) %>% 
   filter(!is.na(region_name)) %>% 
   ungroup() %>% 
@@ -428,10 +568,10 @@ msoa_by_region_and_rating
 plot_msoas_by_region <-  function(y_var){
   
   p <- ggplot(data = msoa_by_region_and_rating,
-            mapping = aes(x = Green_Space_Deprivation_Rating, y = .data[[y_var]])
+            mapping = aes(x = green_space_deprivation_rating, y = .data[[y_var]])
             )
 
-  p + geom_bar(mapping = aes(fill = Green_Space_Deprivation_Rating),
+  p + geom_bar(mapping = aes(fill = green_space_deprivation_rating),
              stat = "identity",
              colour = "grey80") +
   
@@ -464,7 +604,7 @@ It would be easier to read if I produced separate plots for each green space dep
 
 ```{r}
 prop_a <- msoa_by_region_and_rating %>%
-  filter(Green_Space_Deprivation_Rating == "A") %>% 
+  filter(green_space_deprivation_rating == "A") %>% 
   mutate(prop_a = prop) %>% 
   select(region_name, prop_a)
 
@@ -478,7 +618,7 @@ p <- ggplot(data = msoa_by_region_and_rating,
             )
 
 p + geom_bar(stat = "identity") +
-  facet_wrap(~ Green_Space_Deprivation_Rating) +
+  facet_wrap(~ green_space_deprivation_rating) +
   
   guides(fill = FALSE) +
   
@@ -518,7 +658,7 @@ plot_gsdr_prop_by_region <- function(rating = "A"){
     msoa_by_region_and_rating %>%
       
     # focus on the rating of interest
-    filter(Green_Space_Deprivation_Rating == rating) %>% 
+    filter(green_space_deprivation_rating == rating) %>% 
     mutate(proportion = msoa_count / sum(msoa_count)) %>%
     
     # create the bar chart
@@ -593,7 +733,7 @@ green_space_region_plot <- function(region){
 
   p <-  ggplot(data = msoa_sf_gs %>% 
                  filter(region_name == region),
-               mapping = aes(fill = Green_Space_Deprivation_Rating)
+               mapping = aes(fill = green_space_deprivation_rating)
                )
   
   p + geom_sf(colour = "grey75") +
@@ -623,12 +763,12 @@ green_space <- green_space %>%
   relocate(prop_BAME_pop, .after = BAME_Pop)
 
 p <- ggplot(data = green_space,
-            mapping = aes(x = Green_Space_Deprivation_Rating,
+            mapping = aes(x = green_space_deprivation_rating,
                           y = prop_BAME_pop)
             )
 
 p + geom_jitter(alpha = 0.5, colour = "grey75") +
-  geom_boxplot(mapping = aes(fill = Green_Space_Deprivation_Rating), 
+  geom_boxplot(mapping = aes(fill = green_space_deprivation_rating), 
                alpha = 0.5, 
                size = 1.25,
                colour = "grey25") +
@@ -643,12 +783,12 @@ p + geom_jitter(alpha = 0.5, colour = "grey75") +
   
 ```
 ```{r}
-library(ggridges)
+
 
 p <- ggplot(data = green_space,
-            mapping = aes(y = Green_Space_Deprivation_Rating,
+            mapping = aes(y = green_space_deprivation_rating,
                           x = prop_BAME_pop,
-                          fill = Green_Space_Deprivation_Rating)
+                          fill = green_space_deprivation_rating)
             )
 
 p + geom_density_ridges(alpha = 0.6, scale = 1.5) +
@@ -672,18 +812,18 @@ p + geom_density_ridges(alpha = 0.6, scale = 1.5) +
 
 
 p <- ggplot(data = msoa_by_rating,
-            mapping = aes(x = Green_Space_Deprivation_Rating, y = msoa_count)
+            mapping = aes(x = green_space_deprivation_rating, y = msoa_count)
             )
 
-p + geom_segment(mapping = aes(x = Green_Space_Deprivation_Rating,
-                               xend = Green_Space_Deprivation_Rating,
+p + geom_segment(mapping = aes(x = green_space_deprivation_rating,
+                               xend = green_space_deprivation_rating,
                                y = 750,
                                yend = msoa_count),
                  colour = "grey50",
                  size = 1.5
                  ) +
   
-  geom_point(mapping = aes(fill = Green_Space_Deprivation_Rating),
+  geom_point(mapping = aes(fill = green_space_deprivation_rating),
              size = 7.5,
              shape = 21, 
              colour = "grey50", 
@@ -703,7 +843,7 @@ p + geom_segment(mapping = aes(x = Green_Space_Deprivation_Rating,
   
   guides(fill = FALSE) +
   
-  # facet_wrap(~ Green_Space_Deprivation_Rating) +
+  # facet_wrap(~ green_space_deprivation_rating) +
   
   coord_flip()
 ```
