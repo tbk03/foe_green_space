@@ -414,18 +414,18 @@ So, I wondered if the outliers/very long tail are a result of areas with small p
 
 ```{r}
 p <- ggplot(data = green_space,
-            mapping = aes(y = population_imd,
+            mapping = aes(x = population_imd,
                           colour = green_space_deprivation_rating)
             )
 
-p + geom_point(mapping = aes(x = green_space_area), 
+p + geom_point(mapping = aes(y = green_space_area), 
                alpha = 0.5) +
   
   labs(colour = "GS rating") +
   facet_wrap(~green_space_deprivation_rating)
 
 
-p + geom_point(mapping = aes(x = log(green_space_area)),
+p + geom_point(mapping = aes(y = log(green_space_area)),
                alpha = 0.5) +
   labs(colour = "GS rating")
 ```
@@ -547,6 +547,175 @@ p + geom_point(mapping = aes(y = log(green_space_area_per_capita)),
 
 
 
+```
+
+## Green space access
+
+* From histogram:
+  - from 0 to approx. 40% the frequency distribution of `pcnt_pop_with_go_space_access` is uniform.
+  - from approx. 40% to 100% there is a negative linear association between `pcnt_pop_with_go_space_access` and frequency. 
+* from the boxplot with grouping by rating
+  - ratings A,C and E have similar distributions of percentage populations with good access to green space.
+  - rating B and D have similar distributions of percentage populations with good access to green space.
+  - at each rating there is a wide variation in the percentage of populations with good access to green space
+* Overall it is not clear to what extent `pcnt_pop_with_go_space_access` is influencing the ratings ... would dropping it make much difference to how MSOA are classified?
+* 75% `pcnt_pop_with_go_space_access` is used as a cut off point for some classifications. This figure seems high, it is at approximately the 95th percentile (see calculation below).
+
+```{r}
+
+rating_component_plots <- function(){
+  
+  # looking at the distribution of rating_component
+  plot(p + geom_density())
+  
+  plot(p + geom_density(mapping = aes(fill = green_space_deprivation_rating),
+                   alpha = 0.4))
+  
+  plot(p + geom_boxplot())
+  
+  plot(p + geom_histogram())
+  
+  
+  # break down prating_component distribution by green space deprivation rating
+  p + geom_jitter(mapping = aes(y = green_space_deprivation_rating), 
+                alpha = 0.2, 
+                colour = "grey50") +
+    geom_boxplot(mapping = aes(y = green_space_deprivation_rating,
+                              fill = green_space_deprivation_rating), alpha = 0.5) +
+    guides(fill = FALSE)
+}
+
+p <- ggplot(data = green_space,
+            mapping = aes(x = pcnt_pop_with_go_space_access)
+            )
+
+rating_component_plots()
+
+# looking at assocation between pcnt_pop_with_go_space_access and the other 
+# two variables that inform the green space deprivation rating
+p + geom_point(mapping = aes(y = log(green_space_area_per_capita),
+                             colour = green_space_deprivation_rating)
+               )
+
+p + geom_point(mapping = aes(y = log(garden_area_per_capita),
+                             colour = green_space_deprivation_rating)
+                 )
+
+# calculate the percentile of the cutoff value used in FoE classification
+percentile <- ecdf(green_space$pcnt_pop_with_go_space_access)
+percentile(75)
+
+
+green_space
+```
+```{r}
+grouped_summary <- function(df, grouping_var, summary_var){
+  df %>% 
+    group_by({{grouping_var}}) %>% 
+    summarise(min = min({{summary_var}}),
+              median = median({{summary_var}}),
+              max = max({{summary_var}}),
+              iqr = IQR({{summary_var}}),
+              mean = mean({{summary_var}}),
+              sd = sd({{summary_var}})
+    )
+}
+
+grouped_summary(df = green_space, 
+                grouping_var = green_space_deprivation_rating,
+                summary_var = pcnt_pop_with_go_space_access) %>% 
+  gt()
+  
+```
+
+## Garden space 
+
+```{r}
+
+# produce plots for garden_area_per_capita
+p <- ggplot(data = green_space %>% 
+              filter(garden_area_per_capita < 4000),# remove one outlier around 
+                                                    # 5000m2 to make plots readable
+            mapping = aes(x = garden_area_per_capita)
+            )
+
+rating_component_plots()
+# 
+# # 
+# p <- ggplot(data = green_space,
+#             mapping = aes(x = log(garden_area_per_capita))
+#             )
+# 
+# rating_component_plots()
+
+grouped_summary(df = green_space, 
+                grouping_var = green_space_deprivation_rating,
+                summary_var = garden_area_per_capita) %>% 
+  gt()
+```
+
+
+## Urban-rural classification and green space deprivation ratings 
+Rural-urban classification at LA scale
+
+<https://www.gov.uk/government/statistics/local-authority-rural-urban-classification> Rural-Urban Classification of Local Authorities Post-2009 Boundaries
+
+```{r}
+readxl::read_xls("../Data/la-class-dataset-post0409.xls", sheet = "England")
+```
+
+Rural-urban classication at MSOA scale
+
+<https://geoportal.statistics.gov.uk/datasets/rural-urban-classification-2001-of-msoas-in-england-and-wales>
+
+```{r}
+file_loc <- "../Data/Rural_Urban_Classification_(2001)_for_MSOAs_in_England_and_Wales/RUC_MSOA_2001_EW_LU.csv"
+
+urban_rural_classification <- readr::read_csv(file_loc) %>%
+  clean_names() %>% 
+  select(msoa01cd, ruc01nm, ruc01cd, morphology_name, morphology_code, context_name, context_code)
+
+urban_rural_classification
+
+# check if any of the parsing problems relate to the columns of interest
+columns_of_interest <-  c("MSOA01CD", "RUC01NM", "RUC01CD", "Morphology Name", 
+                          "Morphology Code", "Context Name", "Context Code")  
+
+problems(urban_rural_classification) %>% 
+  filter(col %in% columns_of_interest)
+```
+
+```{r}
+green_space_urban_rural <- green_space %>% 
+  left_join(urban_rural_classification, by = c("msoa_code" = "msoa01cd")) 
+
+green_space_urban_rural
+```
+
+ * Urban rural classifications weren't available for 150 (approx. 2%) of MSOAs. This isn't ideal, but I don't think it will cause any big problems to drop these from further analyses that require these classification ...
+ * there are only 8 MSOAs not in urban areas classified with a green space deprivation rating of D or E.
+ * but almost 40% of urban MSOAs have green space deprivation ratings of A or B.
+
+```{r}
+# p <- ggplot(data = green_space_urban_rural,
+#             mapping = aes(y = green_space_deprivation_rating))
+# 
+# p + geom_tile(mapping = aes(x = ruc01cd))
+
+
+green_space_urban_rural %>% 
+  tabyl(green_space_deprivation_rating, morphology_name) %>% 
+  adorn_totals("row") %>% 
+  adorn_percentages("col") %>% 
+  adorn_pct_formatting(rounding = "half up", digits = 0) %>%
+  adorn_ns() %>%
+  
+  gt()
+  # gt() %>%
+  # grand_summary_rows(columns = vars(`Town and Fringe`, `Urban > 10K`,
+  #                                   `Village Hamlet & Isolated Dwellings`, NA_),
+  #                    fns = c(total = ~sum(.))
+  #                    )
 ```
 
 **Some thoughts on where I am in understanding the FoE ratings and `green_space_area`:**
