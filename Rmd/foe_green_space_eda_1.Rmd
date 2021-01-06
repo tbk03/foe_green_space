@@ -725,6 +725,9 @@ green_space_urban_rural %>%
 -   
 
 ```{r}
+
+gs_pc_summary
+
 gs_pc_summary %>% 
   select(green_space_deprivation_rating, median, iqr)
 
@@ -742,6 +745,116 @@ p <- ggplot(data = green_space,
 
 p + geom_point()
 ```
+
+
+
+# An alternative appraoch - clustering
+
+https://community.alteryx.com/t5/Alteryx-Designer-Knowledge-Base/Standardization-in-Cluster-Analysis/ta-p/302296
+
+```{r}
+library(tidymodels)
+
+green_space_urban_rural %>%
+  distinct(morphology_name, morphology_code) 
+  
+# select variables of interest  
+cluster_variables <- green_space_urban_rural %>% 
+  select(msoa_name,
+         green_space_area_per_capita,
+         pcnt_pop_area_with_go_space_access,
+         garden_area_per_capita)
+
+
+unit_interval <- function(x){
+  (x - min(x)) / (max(x) - min(x))
+}
+
+# standardise the 
+cluster_variables %>% 
+  mutate(ui_green_space_area_per_capita = unit_interval(green_space_area_per_capita)) %>% 
+  select(ui_green_space_area_per_capita) %>% 
+  summary()
+
+
+
+# check for na's
+cluster_variables %>% 
+  summarise(across(.cols = everything(), 
+                   .fns = ~sum(is.na(.))
+                   )
+            )
+
+# remove labelling columns ahead running clustering algorithm
+data_points <- cluster_variables %>%
+  select(-msoa_name)
+
+kclust <- kmeans(data_points, centers = 3)
+
+# examine outputs
+kclust
+summary(kclust)
+
+# add cluster identifier to the source data
+augment(kclust, data_points)
+
+# summarise per cluster
+tidy(kclust)
+
+glance(kclust)
+
+```
+
+```{r}
+# subset variables to include in clustering
+data_points_subset <- data_points %>% 
+  select(green_space_area_per_capita,
+         garden_area_per_capita,
+         morphology_code) %>%
+  filter(green_space_area_per_capita > 0) %>% 
+  mutate(log_green_space_area_per_capita = log(green_space_area_per_capita)) %>% 
+  select(-green_space_area_per_capita)
+
+data_points_subset %>% 
+  summary()
+
+data_points_subset
+
+# run k_means clustering for k = 1 ... 9
+# and for each cluster create outputs 
+kclusts <- tibble(k = 1:9) %>% 
+  mutate(k_clust = map(k, ~kmeans(data_points_subset, .x)),
+         tidied = map(k_clust, tidy),
+         glanced = map(k_clust, glance),
+         augmented = map(k_clust, augment, data_points_subset)
+         )
+
+kclusts
+
+# separate outputs for use in plotting
+clusters <- kclusts %>% 
+  unnest(cols = c(tidied))
+clusters
+
+assignments <- kclusts %>% 
+  unnest(cols = c(augmented))
+assignments
+
+clusterings <- kclusts %>% 
+  unnest(cols = c(glanced))
+clusterings
+```
+```{r}
+p1 <- ggplot(data = assignments %>% 
+               filter(garden_area_per_capita < 1200), # remove single outlier at approx 5000 m2
+             mapping = aes(x = log_green_space_area_per_capita,
+                           y = garden_area_per_capita)
+             )
+
+p1 + geom_point(mapping = aes(colour = .cluster)) +
+  facet_wrap(~ k)
+```
+
 
 ```{r}
 gs_bar <- function(){
