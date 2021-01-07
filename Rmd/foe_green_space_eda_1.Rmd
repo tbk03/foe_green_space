@@ -752,8 +752,26 @@ p + geom_point()
 
 https://community.alteryx.com/t5/Alteryx-Designer-Knowledge-Base/Standardization-in-Cluster-Analysis/ta-p/302296
 
+
+```{r}
+p <- ggplot(data = green_space_urban_rural)            
+
+p + geom_density(mapping = aes(x = garden_area_per_capita))
+
+p + geom_density(mapping = aes(x = log(green_space_area_per_capita + 1)))
+p + geom_density(mapping = aes(x = log(garden_area_per_capita + 1)))
+p + geom_density(mapping = aes(x = pcnt_pop_area_with_go_space_access))
+```
+
+* I think it might be actively helpful to remove the right skew from the two green space variables in the context of looking at green space deprivation. Why?
+  - I don't there is much practically significant difference between having 10,000m2 and 100,000m2 per capita of public green space in terms people living there having a sense/experience of green space deprivation. And, the same probably holds for garden space too ...
+  - This might save on more complex work further down the line e.g. trying to define a green space utility function ... 
+
+* The the data from all three variables definitely needs transforming to lie on a scale of 0 to 1, to ensure that the kmeans algorithm applies a roughly equal weight to each variable. When putting the raw data into kmeans, `green_space_area_per_capita` is the predominant factor in determining clusters due to the fact that it's values are much larger than those of the other variables ...
+
 ```{r}
 library(tidymodels)
+library(tidyverse)
 
 green_space_urban_rural %>%
   distinct(morphology_name, morphology_code) 
@@ -769,6 +787,16 @@ cluster_variables <- green_space_urban_rural %>%
 unit_interval <- function(x){
   (x - min(x)) / (max(x) - min(x))
 }
+
+# transform variable to remove skew
+cluster_variables %>% 
+  mutate(log_green_space_area_per_capita = log(green_space_area_per_capita + 1),
+         log_garden_area_per_capita = log(garden_area_per_capita + 1), # +1 require because log(0) is not defined
+         ui_log_green_space_area_per_capita = unit_interval(log_green_space_area_per_capita),
+         ui_log_garden_area_per_capita = unit_interval(log_garden_area_per_capita)) %>%  
+  summary()
+  
+
 
 # standardise the 
 cluster_variables %>% 
@@ -809,11 +837,7 @@ glance(kclust)
 # subset variables to include in clustering
 data_points_subset <- data_points %>% 
   select(green_space_area_per_capita,
-         garden_area_per_capita,
-         morphology_code) %>%
-  filter(green_space_area_per_capita > 0) %>% 
-  mutate(log_green_space_area_per_capita = log(green_space_area_per_capita)) %>% 
-  select(-green_space_area_per_capita)
+         garden_area_per_capita)
 
 data_points_subset %>% 
   summary()
@@ -847,7 +871,7 @@ clusterings
 ```{r}
 p1 <- ggplot(data = assignments %>% 
                filter(garden_area_per_capita < 1200), # remove single outlier at approx 5000 m2
-             mapping = aes(x = log_green_space_area_per_capita,
+             mapping = aes(x = green_space_area_per_capita,
                            y = garden_area_per_capita)
              )
 
