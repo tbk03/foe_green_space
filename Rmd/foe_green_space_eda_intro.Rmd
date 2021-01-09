@@ -1,5 +1,5 @@
 ---
-title: "foe_green_space_eda_1"
+title: "Exploring the Friends of the Earth Green Space Deprivation Ratings"
 output: 
   html_document:
     df_print: paged
@@ -10,7 +10,7 @@ bibliography: references.bib
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
+```{r, include=FALSE}
 library(tidyverse)
 library(readxl)
 library(RColorBrewer)
@@ -18,81 +18,80 @@ library(cowplot)
 library(gt)
 library(ggridges)
 library(janitor)
+library(kableExtra)
 
+# set the default ggplot theme for the whole notebook
 theme_set(theme_minimal())
 
 ```
 
-## Objectives
+## Framing
 
-## Context
+**Audience:**
 
-**National:**
+-   Friends of the Earth data analysis team
+-   Myself - so I can look back on how my data analytics practice has developed
 
--   Funding challenges parks
--   Housing shortages
--   Leveling up agenda
+**Style:**
 
-**Personal:**
+-   Blog-like, informal
 
--   
+## The Friends of the Earth - "England's Green Space Gap"
 
-## The Friends of the Earth Report - "England's Green Space Gap"
+Friends of the Earth (FoE) have recently released a report focused on "[England's Green Space Gap](https://friendsoftheearth.uk/nature/englands-not-so-green-and-pleasant-land-millions-can-only-access-green-space-size-garden)". The headline finding of the report is that one in five people in England live in areas where it is difficult to access green space . The report also provides a holistic overview of why green space is so important, by highlighting how individuals and communities benefit from having access to both public and private green space. These benefits which stretch far beyond the natural environmental itself, and encompass a myriad of social, health and economic benefits.
 
--   Friends of the Earth (FoE) recently released a report detailing their research into "England's Green Space Gap".
--   As part of their research FoE developed a new approach for classifying the extent of green space deprivation across English neighbourhoods (i.e. English MSOAs).
--   Neighbourhoods are classified into five groups - A (least green space deprived), B, C, D and E (most green space deprived).
--   This classification is based on analysis of two datasets from the ONS detailing: (1) the amount garden space; and, (2) the accessibility of public green spaces (parks etc.).
--   In the report, FOE also draw on the ONS Index of Multiple Deprivation (IMD) dataset to explore the relationship between green space deprivation and demographic factors (including ethnicity and income).
+As part of the research underpinning the Green Space Gap report, Friends of the Earth have developed a new approach for classifying the extent to which neighborhoods (or Middle Super Output Areas in the terminology of the administrative geography) across England experience green space deprivation. Neighborhoods are classified into five groups; with group A including the least green space deprived neighborhoods, and E including the most green space deprived. This classification is primarily based on analysis of [two datasets from the ONS](https://www.ons.gov.uk/economy/environmentalaccounts/datasets/accesstogardensandpublicgreenspaceingreatbritain) detailing: (1) the amount garden space; and, (2) the accessibility of public green spaces (parks etc.).
+
+![image caption](../images/202010109_data_structure.jpg)
+
+In the report, Friends of the Earth also draw on the ONS Index of Multiple Deprivation (IMD) dataset to explore the relationship between green space deprivation and demographic factors including ethnicity and income.
+
 -   FoE have released the dataset which informs the "England's Green Space Gap" report. This dataset includes the FoE green space classification for each English neighborhood, alongside IMD data.
--   Reading the report and exploring the associated dataset, I was struck by a number of questions about the nature and scope of green space deprivation in England. I thought that these questions might be a good basis for an exploratory data analysis, which might extend upon the FoE analysis and contribute to the wider debate on maintaining and extending access to green space during the post-covid recovery.
 
-## Questions for Exploratory Data Analysis
+## Structure for Exploratory Data Analysis
 
-**Where is green space deprivation experienced?**
+Reading the report and exploring the associated dataset, I was struck by a number of questions about the nature and scope of green space deprivation in England. I thought that these questions might be a good basis for an exploratory data analysis, which might extend upon the FoE analysis and contribute to the wider debate on maintaining and extending access to green space during the post-covid recovery.
 
--   *Green space deprivation:*
+-   What is the scale of the green space deprivation problem in England?
 
-    -   What is the scale of the green space deprivation problem in England?
+    -   How many neighborhoods could be considered green space deprived?
+    -   How many people live in green space deprived neighborhoods?
+    -   How are FoE's green space deprivation ratings distributed?
 
-        -   How many neighborhoods could be considered green space deprived?
-        -   How many people live in green space deprived neighborhoods?
-        -   How are FoE's green space deprivation ratings distributed?
+-   [Is green space deprivation an urban problem? 2001 classification](https://geoportal.statistics.gov.uk/datasets/rural-urban-classification-2001-of-msoas-in-england-and-wales)?
 
-    -   [Is green space deprivation an urban problem? 2001 classification](https://geoportal.statistics.gov.uk/datasets/rural-urban-classification-2001-of-msoas-in-england-and-wales)?
+    -   Have FoE defined green space deprivation as an urban problem?
+    -   Does the underpinning data justify this?
 
-        -   Have FoE defined green space deprivation as an urban problem?
-        -   Does the underpinning data justify this?
+-   How is green space deprivation distributed across regions in England?
 
-    -   How do the two dimensions of green space deprivation (availability of garden space and accessibility of public green space) relate to each other?
+    -   Where are the regions where action is most needed?
 
-        -   Is there a trade-off between garden space and access to public green space?
+    -   Which regions have the highest/lowest proportion of D and E rated neighborhoods?
 
-    -   How is green space deprivation distributed across regions and a local authorities in England?
+-   What can the dataset tell us about what green space deprivation looks like in England?
 
-        -   Where are the cities/regions where action is most needed?
-        -   Which local authorities have the highest/lowest proportion of D and E rated neighborhoods?
+    -   Is there a trade-off between garden space and access to public green space?
 
-**Who is living with green space deprivation?**
+## Data sources used
 
--   *Ethnicity and green space deprivation:*
+```{r, echo=FALSE}
 
-    -   Are people from a BAME background more likely, than white people, to experience green space deprivation?
-    -   Is the proportion of BAME population within an MSOA associated with the MSOA's green space deprivation rating?
+# create a dataframe for keeping track of the data sources used in this notebook
+data_sources <- tribble(
+  ~file_name, ~variable_name, ~notes, ~url,
+  "(FOE) Green Space Consolidated Data - England - Version 2.1.xlsx", "green_space", "...", "https://friendsoftheearth.uk/nature/green-space-consolidated-data-england",
+  "Local_Authority_District_to_Region__December_2019__Lookup_in_England.csv", "LAD_to_region", "used the December 2019 version", "https://geoportal.statistics.gov.uk/datasets/3ba3daf9278f47daba0f561889c3521a_0",
+"RUC_MSOA_2001_EW_LU.csv", "urban_rural_classification", "2001 was the latest version available", "https://geoportal.statistics.gov.uk/datasets/rural-urban-classification-2001-of-msoas-in-england-and-wales" 
+) %>% 
+  relocate(variable_name, .before = file_name)
 
--   *Age and green space deprivation:*
+# format the dataframe for inclusion in knitted document
+data_sources %>% 
+  kable() %>% 
+  kable_paper()
 
-    -   Are different age groups more or less likely to experience green space deprivation?
-
--   *Wealth and green space deprivation:*
-
-**The relationship between green space deprivation and health?**
-
--   *Covid and green space deprivation:*
-
-    -   Have populations living in green space deprived area experienced a greater covid-19 burden, relative to people living in green space affluent areas.
-
--   *Life expectancy and green space deprivation:*
+```
 
 **Ideas:**
 
@@ -101,24 +100,9 @@ theme_set(theme_minimal())
 -   Is there an equivalent approach for ethnicity? Where might the boundary be drawn (the national average proportion of BAME population)?
 -   Green space affluent vs. green space deprived?
 
-## Data sources used
-
-```{r}
-
-data_sources <- tribble(
-  ~file_name, ~name, ~notes, ~url,
-  "(FOE) Green Space Consolidated Data - England - Version 2.1.xlsx", "green_space", "...", "https://friendsoftheearth.uk/nature/green-space-consolidated-data-england",
-  "Local_Authority_District_to_Region__December_2019__Lookup_in_England.csv", "LAD_to_region", "used the December 2019 version", "https://geoportal.statistics.gov.uk/datasets/3ba3daf9278f47daba0f561889c3521a_0"
-)
-
-data_sources %>% 
-  gt()
-
-```
-
 Local Authority District to Region lookup (December 2019 used) - <https://geoportal.statistics.gov.uk/datasets/3ba3daf9278f47daba0f561889c3521a_0>
 
-```{r}
+```{r, eval=FALSE}
 green_space <- read_excel("../Data/(FOE) Green Space Consolidated Data - England - Version 2.1.xlsx",
                           sheet = "MSOAs V2.1") %>%
   # inconsistent naming conventions for variables are used in the source data
@@ -147,7 +131,7 @@ green_space
 
 ## The distribution of green space deprivation ratings across England
 
-```{r}
+```{r, eval=FALSE}
 green_space %>% 
   tabyl(green_space_deprivation_rating)
 ```
@@ -159,7 +143,7 @@ to add?
 -   Columns on what the rating means
 -   Examples of a place where we might find a neighbourhood
 
-```{r}
+```{r, eval=FALSE}
 
 colour_gs_row <- function(df, colour, rating){
   df %>% 
@@ -304,7 +288,7 @@ msoa_and_pop_by_rating %>%
   
 ```
 
-```{r}
+```{r, eval=FALSE}
 # As a starting point - select the three indices (GSDI_...) that make up the rating (and the data that these indices are calculated from)
 gs_dep_by_rating <- green_space %>% 
 
@@ -332,7 +316,7 @@ gs_dep_by_rating %>%
 
 dealing with outliers Boxplot shows outliers at 1.5\*IQR + Q3 - they are part of the natural variability of the population, so it seems appropriate to retain the outliers, but zoom on the graphs because the .
 
-```{r}
+```{r, eval=FALSE}
 box_plot_mapping = aes(x = green_space_area_per_capita,
                        y = green_space_deprivation_rating)
 
@@ -365,7 +349,7 @@ p + geom_boxplot() +
 
 not sure on whether or not to filter out outliers
 
-```{r}
+```{r, eval=FALSE}
 p <- ggplot(data = gs_dep_by_rating, #%>% 
             #filter(green_space_area_per_capita < 500),
             mapping = box_plot_mapping
@@ -396,7 +380,7 @@ gs_pc_summary
                  
 ```
 
-```{r}
+```{r, eval=FALSE}
 p <- ggplot(data = gs_dep_by_rating, #%>% 
               #filter(green_space_area_per_capita < 500),
             mapping = aes(x = green_space_area_per_capita,
@@ -412,7 +396,7 @@ p + geom_density_ridges(alpha = 0.5) + xlim(0,200) +
 
 So, I wondered if the outliers/very long tail are a result of areas with small populations and/very large areas of green space.
 
-```{r}
+```{r, eval=FALSE}
 p <- ggplot(data = green_space,
             mapping = aes(x = population_imd,
                           colour = green_space_deprivation_rating)
@@ -430,7 +414,7 @@ p + geom_point(mapping = aes(y = log(green_space_area)),
   labs(colour = "GS rating")
 ```
 
-```{r}
+```{r, eval=FALSE}
 p <- ggplot(data = green_space, 
             mapping = aes(x = log(green_space_area),
                           )
@@ -447,7 +431,7 @@ p + geom_density()
 
 So, it looks like the it is the green space area has much more influence on green space area per capita, than population.
 
-```{r}
+```{r, eval=FALSE}
 p <- ggplot(data = green_space,
             mapping = aes(y = green_space_area_per_capita,
                           colour = green_space_deprivation_rating)
@@ -471,7 +455,7 @@ So, lets look at the distribution of `green_space_area` itself. This is relative
 
 The extreme skew of the distribution can be seen in the summary statistics below. The median for `green_space_area` is 152,418 m2 while the maximum 636,087,671 m2.
 
-```{r}
+```{r, eval=FALSE}
 
 gs_area_summary <- function(variable, xlim){
   
@@ -499,7 +483,7 @@ gs_area_summary(green_space_area, c(0, 1e6))
 
 A similarly extreme right skewed distribution can seen for `green_space_area_per_capita`, as shown in the plots and summary stats below. It is worth noting just how atypical many of the larger outliers are. The median for `green_space_area_per_capita` is less than 20 m2 per capita, while the maximum is approximately 100,000 m2 per capita.
 
-```{r}
+```{r, eval=FALSE}
 gs_area_summary(green_space_area_per_capita, c(0, 100))
 ```
 
@@ -513,7 +497,7 @@ The second plot groups MSOAs by their FoE green space deprivation rating and hig
 -   A rated MSOAs (those least green space deprived) tend to have low population density. For these MSOAs we again see an exponential decline in density as population density increases.
 -   As green space deprivation increases (moving from rating A to E), the KDE's widen and seem to tend more toward a normal-like distribution.
 
-```{r}
+```{r, eval=FALSE}
 green_space %>% 
   select(population_density) %>% 
   summary()
@@ -530,7 +514,7 @@ p + geom_density(mapping =aes(fill = green_space_deprivation_rating),
 
 Plotting population density against green space area and green space area per capita produces very associations. Note the log scales on both the x and y axis in both cases.
 
-```{r}
+```{r, eval=FALSE}
 p <- ggplot(data = green_space,
             mapping = aes(x = log(population_density),
                           colour = green_space_deprivation_rating
@@ -551,17 +535,22 @@ p + geom_point(mapping = aes(y = log(green_space_area_per_capita)),
 
 ## Green space access
 
-* From histogram:
-  - from 0 to approx. 40% the frequency distribution of `pcnt_pop_with_go_space_access` is uniform.
-  - from approx. 40% to 100% there is a negative linear association between `pcnt_pop_with_go_space_access` and frequency. 
-* from the boxplot with grouping by rating
-  - ratings A,C and E have similar distributions of percentage populations with good access to green space.
-  - rating B and D have similar distributions of percentage populations with good access to green space.
-  - at each rating there is a wide variation in the percentage of populations with good access to green space
-* Overall it is not clear to what extent `pcnt_pop_with_go_space_access` is influencing the ratings ... would dropping it make much difference to how MSOA are classified?
-* 75% `pcnt_pop_with_go_space_access` is used as a cut off point for some classifications. This figure seems high, it is at approximately the 95th percentile (see calculation below).
+-   From histogram:
 
-```{r}
+    -   from 0 to approx. 40% the frequency distribution of `pcnt_pop_with_go_space_access` is uniform.
+    -   from approx. 40% to 100% there is a negative linear association between `pcnt_pop_with_go_space_access` and frequency.
+
+-   from the boxplot with grouping by rating
+
+    -   ratings A,C and E have similar distributions of percentage populations with good access to green space.
+    -   rating B and D have similar distributions of percentage populations with good access to green space.
+    -   at each rating there is a wide variation in the percentage of populations with good access to green space
+
+-   Overall it is not clear to what extent `pcnt_pop_with_go_space_access` is influencing the ratings ... would dropping it make much difference to how MSOA are classified?
+
+-   75% `pcnt_pop_with_go_space_access` is used as a cut off point for some classifications. This figure seems high, it is at approximately the 95th percentile (see calculation below).
+
+```{r, eval=FALSE}
 
 rating_component_plots <- function(){
   
@@ -608,7 +597,8 @@ percentile(75)
 
 green_space
 ```
-```{r}
+
+```{r, eval=FALSE}
 grouped_summary <- function(df, grouping_var, summary_var){
   df %>% 
     group_by({{grouping_var}}) %>% 
@@ -628,9 +618,9 @@ grouped_summary(df = green_space,
   
 ```
 
-## Garden space 
+## Garden space
 
-```{r}
+```{r, eval=FALSE}
 
 # produce plots for garden_area_per_capita
 p <- ggplot(data = green_space %>% 
@@ -654,21 +644,21 @@ grouped_summary(df = green_space,
   gt()
 ```
 
+## Urban-rural classification and green space deprivation ratings
 
-## Urban-rural classification and green space deprivation ratings 
 Rural-urban classification at LA scale
 
 <https://www.gov.uk/government/statistics/local-authority-rural-urban-classification> Rural-Urban Classification of Local Authorities Post-2009 Boundaries
 
-```{r}
+```{r, eval=FALSE}
 readxl::read_xls("../Data/la-class-dataset-post0409.xls", sheet = "England")
 ```
 
 Rural-urban classication at MSOA scale
 
-<https://geoportal.statistics.gov.uk/datasets/rural-urban-classification-2001-of-msoas-in-england-and-wales>
+<https://geoportal.statistics.gov.uk/datasets/rural-urban-classification-2001-of-msoas-in-england-and-wales> urban_rural_classification
 
-```{r}
+```{r, eval=FALSE}
 file_loc <- "../Data/Rural_Urban_Classification_(2001)_for_MSOAs_in_England_and_Wales/RUC_MSOA_2001_EW_LU.csv"
 
 urban_rural_classification <- readr::read_csv(file_loc) %>%
@@ -685,18 +675,18 @@ problems(urban_rural_classification) %>%
   filter(col %in% columns_of_interest)
 ```
 
-```{r}
+```{r, eval=FALSE}
 green_space_urban_rural <- green_space %>% 
   left_join(urban_rural_classification, by = c("msoa_code" = "msoa01cd")) 
 
 green_space_urban_rural
 ```
 
- * Urban rural classifications weren't available for 150 (approx. 2%) of MSOAs. This isn't ideal, but I don't think it will cause any big problems to drop these from further analyses that require these classification ...
- * there are only 8 MSOAs not in urban areas classified with a green space deprivation rating of D or E.
- * but almost 40% of urban MSOAs have green space deprivation ratings of A or B.
+-   Urban rural classifications weren't available for 150 (approx. 2%) of MSOAs. This isn't ideal, but I don't think it will cause any big problems to drop these from further analyses that require these classification ...
+-   there are only 8 MSOAs not in urban areas classified with a green space deprivation rating of D or E.
+-   but almost 40% of urban MSOAs have green space deprivation ratings of A or B.
 
-```{r}
+```{r, eval=FALSE}
 # p <- ggplot(data = green_space_urban_rural,
 #             mapping = aes(y = green_space_deprivation_rating))
 # 
@@ -724,7 +714,7 @@ green_space_urban_rural %>%
 -   Considering the typical (median) amount of `green_space_area_per_capita` for MSOAs in each rating (as shown in the table below) raises a question in my mind as the amounts of `green_space_area_per_capita` are relatively similar across ratings E to B ... Is it a different experience to live in a neighborhood with approximately 3m2 `green_space_area_per_capita` (as is typical for a E rated MSOA) or with approximately 16m2 `green_space_area_per_capita` (as is typical for a E rated MSOA)? Which got me wondering how much green space is enough [@russo2018] - it appear that this is a question that hasn't been the subject of too much research to date ...
 -   
 
-```{r}
+```{r, eval=FALSE}
 
 gs_pc_summary
 
@@ -746,14 +736,11 @@ p <- ggplot(data = green_space,
 p + geom_point()
 ```
 
-
-
 # An alternative appraoch - clustering
 
-https://community.alteryx.com/t5/Alteryx-Designer-Knowledge-Base/Standardization-in-Cluster-Analysis/ta-p/302296
+<https://community.alteryx.com/t5/Alteryx-Designer-Knowledge-Base/Standardization-in-Cluster-Analysis/ta-p/302296>
 
-
-```{r}
+```{r, eval=FALSE}
 p <- ggplot(data = green_space_urban_rural)            
 
 p + geom_density(mapping = aes(x = garden_area_per_capita))
@@ -763,15 +750,16 @@ p + geom_density(mapping = aes(x = log(garden_area_per_capita + 1)))
 p + geom_density(mapping = aes(x = pcnt_pop_area_with_go_space_access))
 ```
 
-* I think it might be actively helpful to remove the right skew from the two green space variables in the context of looking at green space deprivation. Why?
-  - I don't there is much practically significant difference between having 10,000m2 and 100,000m2 per capita of public green space in terms people living there having a sense/experience of green space deprivation. And, the same probably holds for garden space too ...
-  - This might save on more complex work further down the line e.g. trying to define a green space utility function ... 
+-   I think it might be actively helpful to remove the right skew from the two green space variables in the context of looking at green space deprivation. Why?
 
-* The the data from all three variables definitely needs transforming to lie on a scale of 0 to 1, to ensure that the kmeans algorithm applies a roughly equal weight to each variable. When putting the raw data into kmeans, `green_space_area_per_capita` is the predominant factor in determining clusters due to the fact that it's values are much larger than those of the other variables ...
+    -   I don't there is much practically significant difference between having 10,000m2 and 100,000m2 per capita of public green space in terms people living there having a sense/experience of green space deprivation. And, the same probably holds for garden space too ...
+    -   This might save on more complex work further down the line e.g. trying to define a green space utility function ...
+
+-   The the data from all three variables definitely needs transforming to lie on a scale of 0 to 1, to ensure that the kmeans algorithm applies a roughly equal weight to each variable. When putting the raw data into kmeans, `green_space_area_per_capita` is the predominant factor in determining clusters due to the fact that it's values are much larger than those of the other variables ...
 
 My initial efforts in transforming the data - a log transformation and then scaling values to the unit interval (i.e. 0...1) - proved rather unsuccessful. See the summary stats below, with the transformed values remaining tightly grouped together around the median.
 
-```{r}
+```{r, eval=FALSE}
 library(tidymodels)
 library(tidyverse)
 library(skimr)
@@ -804,7 +792,8 @@ cluster_variables %>%
 ```
 
 So, I wondered about focusing on a subset of the data which could be easier to work with. Perhaps given the focus on green space deprivation it makes sense to remove those clearly green space affluent MSOAs (e.g. those with 10,000's m2 public green space per capita)
-```{r}
+
+```{r, eval=FALSE}
 green_space_urban_rural %>% 
   ggplot(mapping = aes(x = green_space_area_per_capita,
                        y = morphology_name,
@@ -813,15 +802,14 @@ green_space_urban_rural %>%
            
 ```
 
-```{r}
+```{r, eval=FALSE}
 green_space_urban_rural %>% 
   skim(green_space_area_per_capita) %>% 
   as_tibble() %>% 
   clean_names()
 ```
 
-
-```{r}
+```{r, eval=FALSE}
 green_space_urban_rural %>% 
   ggplot(mapping = aes(x = green_space_area_per_capita,
                        y = morphology_name,
@@ -842,7 +830,8 @@ green_space_urban_rural %>%
                        fill = morphology_name)) +
   geom_boxplot() 
 ```
-```{r}
+
+```{r, eval=FALSE}
 green_space_urban_rural %>%
   filter(green_space_area_per_capita < 10000) %>% 
   filter(garden_area_per_capita < 1000) %>% 
@@ -853,8 +842,7 @@ green_space_urban_rural %>%
   facet_wrap(~morphology_name)
 ```
 
-
-```{r}
+```{r, eval=FALSE}
 # check for na's
 cluster_variables %>%
   summarise(across(.cols = everything(),
@@ -881,8 +869,7 @@ tidy(kclust)
 glance(kclust)
 ```
 
-
-```{r}
+```{r, eval=FALSE}
 # subset variables to include in clustering
 data_points_subset <- data_points %>% 
   select(green_space_area_per_capita,
@@ -917,7 +904,8 @@ clusterings <- kclusts %>%
   unnest(cols = c(glanced))
 clusterings
 ```
-```{r}
+
+```{r, eval=FALSE}
 p1 <- ggplot(data = assignments %>% 
                filter(garden_area_per_capita < 1200), # remove single outlier at approx 5000 m2
              mapping = aes(x = green_space_area_per_capita,
@@ -928,8 +916,7 @@ p1 + geom_point(mapping = aes(colour = .cluster)) +
   facet_wrap(~ k)
 ```
 
-
-```{r}
+```{r, eval=FALSE}
 gs_bar <- function(){
   
   list(
@@ -964,7 +951,7 @@ caption_lab <-  "Source: Friends of the Earth, England's Green Space Gap"
 
 ```
 
-```{r}
+```{r, eval=FALSE}
 
 
 p <- ggplot(data = msoa_and_pop_by_rating,
@@ -982,15 +969,15 @@ p + gs_bar() +
 
 ```
 
-Below I plot the proportions of the `r sum(msoa_by_rating$n_msoa)` MSOAs analyzed given each green space deprivation rating.
+Below I plot the proportions of the r sum(msoa_by_rating\$n_msoa) MSOAs analyzed given each green space deprivation rating.
 
--   Approximately 30% of the `r sum(msoa_by_rating$n_msoa)` MSOAs rated are given one of the highest two ratings for green space deprivation , D (16.3%) and E(14.1%);
+-   Approximately 30% of the r sum(msoa_by_rating\$n_msoa) MSOAs rated are given one of the highest two ratings for green space deprivation , D (16.3%) and E(14.1%);
 -   While 24.2% of MSOAs received the lowest rating (A). Approximately 44% of MSOAs receive one of the lowest two rating (A or B).
 -   The most commonly occurring rating is C (25.4% of MSOAs), which includes neighbourhoods which are neither relatively deprived or affluent in terms of access to green space.
 -   Overall, there are more relatively green space affluent neighborhoods in England (rated A and B), than there are relatively green space deprived neighborhoods (rated D and E).
 -   
 
-```{r}
+```{r, eval=FALSE}
 p <- ggplot(data = msoa_and_pop_by_rating,
             mapping = aes(x = green_space_deprivation_rating, 
                           y = prop_msoa,
@@ -1008,7 +995,7 @@ p + gs_bar() +
 msoa_by_rating
 ```
 
-```{r}
+```{r, eval=FALSE}
 
 p <- ggplot(data = msoa_and_pop_by_rating,
             mapping = aes(x = green_space_deprivation_rating,
@@ -1034,7 +1021,7 @@ The two plots below, respectively show for each region the numbers or proportion
 -   The East of England, the South East and the South West have similar distribution, where the most commonly occurring rating is A.
 -   Overall, there are considerable inequities within each region in terms of access to green space. All regions include a mix of green space deprived and affluent neighbourhoods.
 
-```{r}
+```{r, eval=FALSE}
 
 msoa_by_region_and_rating <- green_space %>% 
   
@@ -1077,10 +1064,6 @@ plot_msoas_by_region("prop")
 
 ```
 
-```{r}
-
-```
-
 Below I plot again plot the proportion of MSOAs within each region receiving each green space deprivation rating. This time faceting the plot by green space deprivation rating rather than region. This makes it easier to compare across regions at a given rating.
 
 -   So we can clearly see the South East and Southwest have higher proportions of A rated MSOAs than say the North East and North West.
@@ -1088,7 +1071,7 @@ Below I plot again plot the proportion of MSOAs within each region receiving eac
 
 It would be easier to read if I produced separate plots for each green space deprivation rating, as then the regions could be put in rank order.
 
-```{r}
+```{r, eval=FALSE}
 prop_a <- msoa_by_region_and_rating %>%
   filter(green_space_deprivation_rating == "A") %>% 
   mutate(prop_a = prop) %>% 
@@ -1121,7 +1104,7 @@ This approach help me identify some additional insights:
 -   Over half of MSOAs given the highest green space deprivation rating are accounted for by just two regions: (1) London and (2) the North West.
 -   
 
-```{r}
+```{r, eval=FALSE}
 # The idea is to produce one bar chart for each green space rating, and across these plots use the same colour for a given region. 
 # choose a palette to work with
 region_pal <- brewer.pal(9, "Paired")
@@ -1178,7 +1161,7 @@ gsdr_prop_by_region_plots
 
 ```
 
-```{r, fig.width = 12.5, fig.height=7}
+```{r, fig.width = 12.5, fig.height=7, eval=FALSE}
 
 d_plot <- gsdr_prop_by_region_plots[[4]] + 
   ylim(0, 0.45) # ensure the plot axis scales match
@@ -1243,7 +1226,7 @@ region_names %>%
 
 # Ethnicity and green space deprivation
 
-```{r}
+```{r, eval=FALSE}
 green_space <- green_space %>% 
   mutate(prop_BAME_pop = BAME_Pop / Total_Pop_From_Ethnicity_Data) %>%
   relocate(prop_BAME_pop, .after = BAME_Pop)
@@ -1269,7 +1252,7 @@ p + geom_jitter(alpha = 0.5, colour = "grey75") +
   
 ```
 
-```{r}
+```{r, eval=FALSE}
 
 
 p <- ggplot(data = green_space,
