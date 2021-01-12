@@ -6,7 +6,12 @@ output:
 bibliography: references.bib
 ---
 
-```{r, library_packages, include=FALSE}
+```{r knit_options, message = FALSE, echo = FALSE}
+# set defaults for the appearance/supression of code chunks in the markdown doc
+knitr::opts_chunk$set(message = FALSE, echo = FALSE)
+```
+
+```{r library_packages, include=FALSE}
 library(tidyverse)
 library(readxl)
 library(RColorBrewer)
@@ -20,9 +25,6 @@ library(kableExtra)
 ```{r set_document_defaults}
 # set the default ggplot theme for the whole notebook
 theme_set(theme_minimal())
-
-# set defaults for the appearance/supression of code chunks in the markdown doc
-knitr::opts_chunk$set(message = FALSE, echo = FALSE)
 
 # set green to grey colour scale for use in tables and graphs
 colour_palette <- scales::seq_gradient_pal(low = "palegreen4", high = "grey")
@@ -54,9 +56,13 @@ Friends of Earth have released the dataset that they developed and used to class
 ![Producing the Friends of the Earth Green Space Deprivation ratings.](../images/202010109_data_structure.jpg)
 
 -   Accessing two ***Public Datasets*** from [the ONS](https://www.ons.gov.uk/economy/environmentalaccounts/datasets/accesstogardensandpublicgreenspaceingreatbritain) detailing: (1) the amount garden space and the accessibility of public green spaces (parks etc.); and (2), the extent of various forms of deprivation.
+
 -   Identifying ***Underlying Variables*** of interest within these two datasets including for example the amounts of different forms of public green space.
+
 -   Creating three ***Summary Variables*** by processing the ***Underlying Variables***. For example, calculating the percentage of population within each neighbourhood within 5 minutes walk of public green space.
+
 -   Calculating green space ***Scores***from each of the three ***Summary Variables*****.**
+
 -   Classifying each neighbourhood based on its green space ***Scores***into one of five green space deprivation ***Overall Ratings***.
 
 Full details of the methodology used by Friends of the Earth can be found on page 36 of the Green Space Gap report.
@@ -191,7 +197,8 @@ The first question I turn to is how many neighborhoods are considered green spac
 
 -   There is no strong trend in the relationship between the extent of green space deprivation (as defined by the FoE rating) and the number of neighborhoods receiving a given rating rating.
 -   That said clearly fewer neighborhoods received the rating of D or E (representing the worst green space deprivation), than neighborhoods received a rating of A, B or C (representing less severe green space deprivation, and perhaps in some case representing green space affluence).
--   The number of neighborhoods receiving an A or B rating exceed 2000. Showing that green space deprivation, as defined by Friends of the Earth, is a widespread problem in England. \*The most commonly occurring rating is C, the middle of the five green space deprivation ratings.
+-   The number of neighborhoods receiving an A or B rating exceed 2000. Showing that green space deprivation, as defined by Friends of the Earth, is a widespread problem in England.
+-   The most commonly occurring rating is C, the middle of the five green space deprivation ratings.
 
 ```{r plot_by_rating}
 p <- ggplot(data = msoa_and_pop_by_rating,
@@ -221,9 +228,19 @@ p + geom_col() +
 
 There are a small number of categories that a rating can fall into (A-E), and the ratings are based on simplified and abstracted representations of the ONS green space data (i.e. the green space ***scores*** shown as described in the introduction section above ). So, I do not think there is much value at this stage in considering descriptive statistics which summarise the distribution of green space deprivation ratings. At some point in might worth considering how the simplifications/abstractions used have affect the distributions of the ONS green space data, but I leave this to one side for now.
 
-I am interested in how understanding in more detail the numbers and proportions of both neighborhoods and the population which are impacted by green space deprivation. To this end I produced the table below. Reviewing the table I noted:
+I am interested in how understanding in more detail the numbers and proportions of both neighborhoods and the population which are impacted by green space deprivation. To this end I produced the table below. The table separates the ratings in to two groups:
 
--   
+-   D and E: The neighborhoods rated as suffering the most extensive green space deprivation, and which FoE identify as in need of urgent action to improve access to green space.
+
+-   A, B and C: Neighborhoods which FoE identify as in of action to protect green space and access to it, it the context of the long term trends which are reducing access to green space.
+
+Reviewing the table I noted:
+
+-   That around 30% of neighborhoods are rated either D or E, with around 17.84 million people (or 1 in 3 people) living in these neighborhoods and experiencing considerable green space deprivation.
+
+-   Around 70% of neighborhoods are rated either A, B or C. With 25% of neighborhoods rated C and at risk of falling into considerable green space deprivation (i.e. ratings A and B) if green space and access to it is not protected over coming decades.
+
+-   The percentages of neighborhoods and percentages of population are very similar in each rating group. So, considering the proportions of neighborhoods gives a fair indication of the proportions of the population affected.
 
 ```{r produce_rating_table}
 
@@ -351,16 +368,172 @@ msoa_and_pop_by_rating %>%
               
 ```
 
+## How is green space deprivation distributed across regions in England?
+
+```{r count_by_region}
+# before looking at how the green space deprivation ratings are distributed across
+# regions some data wrangling is needed
+msoa_by_region_and_rating <- green_space_urban_rural %>% 
+  
+  # count by region and rating
+  group_by(region_name, green_space_deprivation_rating) %>% 
+  summarise(n_msoa = n()) %>% 
+  filter(!is.na(region_name)) %>% 
+  ungroup() %>% 
+
+  # calculate rating proportions by region
+  group_by(region_name) %>% 
+  mutate(prop = n_msoa / sum(n_msoa)) %>% 
+  ungroup()
+
+```
+
+Having explored how many neighborhoods and people are affected by green space deprivation across England as a whole, I was interested to understand if communities and people in some regions are more affected than others. In turn this could provide an indication of where action to alleviate green space deprivation is most needed. The plot below shows for each region the numbers the numbers of neighborhoods receiving each green space deprivation rating. Reviewing the plot I noted:
+
+-   Over 450 of London's neighborhoods have been given the lowest rating (E). A further approximately 250 of London's neighborhoods are rated are rated D.
+-   Outside of London, no other region has more than 150 neighborhoods receiving the lowest rating. This demonstrates that although green space deprivation is a nationwide issue, perhaps unsurprisingly it is most prominent in London (as the largest city in the country).
+-   Overall, there are considerable inequities within each region in terms of access to green space. All regions include a mix of green space deprived (rated D and E) neighborhoods and considerably less deprived.
+
+
+```{r plot_by_region_and_rating}
+# as I was originally consider plotting both counts and proportions I wrote
+# a plotting function that handle either (just to reduce the amount redundancy
+# in the code).
+
+plot_msoas_by_region <-  function(y_var){
+  
+  p <- ggplot(data = msoa_by_region_and_rating,
+            mapping = aes(x = green_space_deprivation_rating, y = .data[[y_var]])
+            )
+
+  p + geom_bar(mapping = aes(fill = green_space_deprivation_rating),
+             stat = "identity",
+             colour = "grey80") +
+  
+  scale_fill_brewer(type = "div",
+                    palette = "RdYlGn",
+                    direction = -1) +
+  
+  guides(fill = FALSE) +
+  
+  coord_flip() +
+  
+  facet_wrap(~ region_name, ncol = 3)
+}
+
+plot_msoas_by_region("n_msoa") +
+  labs(y = "\nNumber of Neighbourhoods",
+       x = "Green Space Deprivation Rating\n\n",
+       title = "Green space deprivation across the English regions\n")
+
+# RETAIN CODE FOR PLOTITING PROPORTIONS (RATHER THAN COUNTS)
+#plot_msoas_by_region("prop")
+
+```
+I was interest to understand in little more detail where the neighborhoods receiving the highest green space deprivation ratings (D and E). Below I plotted how the proportions of neighborhoods receiving a given rating (in this case D or E) are distributed across the English regions. Doing this involved addressing the challenge of how to ensure the colour associated with a given region was applied consistently across the two plots. This blog on [How to map a colour to a value of a categorical variable ...](https://www.stat.ubc.ca/~jenny/STAT545A/block17_colorsGgplot2Qualitative.html) was very helpful in addressing this challenge.
+
+-   So we can clearly see the South East and Southwest have higher proportions of A rated MSOAs than say the North East and North West.
+-   While outside of London, within each region there are similar proportion of neighbourhoods receiving the two highest green space deprivation ratings (D and E).
+
+
+
+
+This approach help me identify some additional insights:
+
+-   For the highest green space deprivation ratings (D and E), the ranking of regions is the same: (1) London, (2) North West, (3) South East, (4) Yorkshire and the Humber and (5) West Midlands.
+-   Over half of MSOAs given the highest green space deprivation rating are accounted for by just two regions: (1) London and (2) the North West.
+-   
+
+```{r setup_plot_gsdr_prop_by_region}
+# The idea is to produce one bar chart for each green space rating, and across these plots use the same colour for a given region. 
+
+# choose a palette to work with
+region_pal <- brewer.pal(9, "Paired")
+
+# map the region names to a specific colour value (in a dataframe for ease)
+region_colours_df <- msoa_by_region_and_rating %>% 
+  select(region_name) %>% 
+  distinct(region_name) %>% 
+  add_column(colour = region_pal)
+
+# convert the region-colour mapping from a dataframe to a vector
+# because a vector is required by scale_fill_manual
+region_colours_vector <- region_colours_df$colour
+names(region_colours_vector) <- region_colours_df$region_name
+
+# count number of neighborhoods with each rating for use in the plot below
+msoa_count <- msoa_by_region_and_rating %>% 
+  group_by(green_space_deprivation_rating) %>% 
+  summarise(n_msoa = sum(n_msoa))
+
+# provide a look from rating (A-E) and counts of msoas
+get_msoa_count <- function(rating){
+  msoa_count %>% 
+    filter(green_space_deprivation_rating == rating) %>% 
+    select(n_msoa) %>% 
+    as.integer()
+}
+
+
+plot_gsdr_prop_by_region <- function(rating = "A"){
+  
+    msoa_by_region_and_rating %>%
+      
+    # focus on the rating of interest
+    filter(green_space_deprivation_rating == rating) %>% 
+    mutate(proportion = n_msoa / sum(n_msoa)) %>%
+    
+    # create the bar chart
+    ggplot(mapping = aes(x = reorder(region_name, proportion), 
+                         y = proportion,
+                         fill = region_name
+                         )
+           ) +
+      
+    geom_col() +
+    
+    # apply region-colour mapping  
+    scale_fill_manual(values = region_colours_vector) +
+    
+    guides(fill = FALSE) +
+      
+    labs(title = str_c(get_msoa_count(rating), " neighborhoods were rated ", rating, "\n"),
+         x = NULL,
+         y = str_c("Proportion of ", rating, " rated neighborhoods")
+         ) +
+    
+    coord_flip()
+}
+
+# produce one plot for each of the five green space deprivation ratings
+gsdr_prop_by_region_plots <- c("A", "B", "C", "D", "E") %>%
+  map(~ plot_gsdr_prop_by_region(.x))
+
+
+```
+
+```{r plot_gsdr_prop_by_region, fig.width = 12.5, fig.height=7}
+
+# Add just the plots for D and E rated MSOA to a single figure
+
+d_plot <- gsdr_prop_by_region_plots[[4]] + 
+  ylim(0, 0.45) # ensure the plot axis scales match
+  
+e_plot <- gsdr_prop_by_region_plots[[5]] + 
+  ylim(0, 0.45) # ensure the plot axis scales match
+
+plot_grid(d_plot, e_plot, ncol = 2)
+```
+
+Could do ridgeline plots for each region - for prop rated A and proportion rated E
+
+
 ## Is green space deprivation an urban problem?
 
 -   Have FoE defined green space deprivation as an urban problem?
 -   Does the underpinning data justify this?
 
-## How is green space deprivation distributed across regions in England?
-
--   Where are the regions where action is most needed?
-
--   Which regions have the highest/lowest proportion of D and E rated neighborhoods?
+## 
 
 ## What can the dataset tell us about what green space deprivation looks like in England?
 
@@ -996,166 +1169,7 @@ p1 + geom_point(mapping = aes(colour = .cluster)) +
 
 ## The distribution of green space deprivation ratings across the regions
 
-The two plots below, respectively show for each region the numbers or proportion of MSOA with each green space deprivation rating. Key insights from the two plots include:
 
--   Over 45% of London's MSOAs have been given the lowest rating (E). A further approximately 30% of London's MSOAs are rated are rated D;
--   In the other regions (excluding London), the proportion of MSOAs with the lowest rating (E) in each is in the range of approximately 5-15%. The demonstrates that green space deprivation is a nationwide issue, that is perhaps unsurprisingly prominent in London (the largest city)
--   The North-East and the North-West have very similar distributions of MSOA green space deprivation ratings. With the a fairly symetrical and bell shaped distribution, centred on the C rating. Perhap reflecting a mix
--   The East of England, the South East and the South West have similar distribution, where the most commonly occurring rating is A.
--   Overall, there are considerable inequities within each region in terms of access to green space. All regions include a mix of green space deprived and affluent neighbourhoods.
-
-```{r, eval=FALSE}
-
-msoa_by_region_and_rating <- green_space %>% 
-  
-  # count by region and rating
-  group_by(region_name, green_space_deprivation_rating) %>% 
-  summarise(n_msoa = n()) %>% 
-  filter(!is.na(region_name)) %>% 
-  ungroup() %>% 
-
-  # calculate rating proportions by region
-  group_by(region_name) %>% 
-  mutate(prop = n_msoa / sum(n_msoa)) %>% 
-  ungroup()
-
-msoa_by_region_and_rating
-
-plot_msoas_by_region <-  function(y_var){
-  
-  p <- ggplot(data = msoa_by_region_and_rating,
-            mapping = aes(x = green_space_deprivation_rating, y = .data[[y_var]])
-            )
-
-  p + geom_bar(mapping = aes(fill = green_space_deprivation_rating),
-             stat = "identity",
-             colour = "grey80") +
-  
-  scale_fill_brewer(type = "div",
-                    palette = "RdYlGn",
-                    direction = -1) +
-  
-  guides(fill = FALSE) +
-  
-  coord_flip() +
-  
-  facet_wrap(~ region_name, ncol = 3)
-}
-
-plot_msoas_by_region("n_msoa")
-plot_msoas_by_region("prop")
-
-```
-
-Below I plot again plot the proportion of MSOAs within each region receiving each green space deprivation rating. This time faceting the plot by green space deprivation rating rather than region. This makes it easier to compare across regions at a given rating.
-
--   So we can clearly see the South East and Southwest have higher proportions of A rated MSOAs than say the North East and North West.
--   While outside of London, within each region there are similar proportion of neighbourhoods receiving the two highest green space deprivation ratings (D and E).
-
-It would be easier to read if I produced separate plots for each green space deprivation rating, as then the regions could be put in rank order.
-
-```{r, eval=FALSE}
-prop_a <- msoa_by_region_and_rating %>%
-  filter(green_space_deprivation_rating == "A") %>% 
-  mutate(prop_a = prop) %>% 
-  select(region_name, prop_a)
-
-msoa_by_region_and_rating <- msoa_by_region_and_rating %>% 
-  left_join(prop_a)
-  
-msoa_by_region_and_rating  
-
-p <- ggplot(data = msoa_by_region_and_rating,
-            mapping = aes(x = reorder(region_name, prop_a), y = prop, fill = region_name)
-            )
-
-p + geom_bar(stat = "identity") +
-  facet_wrap(~ green_space_deprivation_rating) +
-  
-  guides(fill = FALSE) +
-  
-  coord_flip()
-```
-
-Next I explored an alternative appraoch to considering the distribution of msoas by rating and region. I plotted the proportion of MSOAs that received a specific rating by region. In order to address the ordering issue above, I produced one plot for each green space rating. This meant addressing the challenge of how to ensure the colour associated with a given region was applied consistently across the five plots. Here is where I found the an approach to doing this, using scale\_...\_manual.
-
-[How to map a colour to a value of a categorical variable ...](https://www.stat.ubc.ca/~jenny/STAT545A/block17_colorsGgplot2Qualitative.html)
-
-This approach help me identify some additional insights:
-
--   For the highest green space deprivation ratings (D and E), the ranking of regions is the same: (1) London, (2) North West, (3) South East, (4) Yorkshire and the Humber and (5) West Midlands.
--   Over half of MSOAs given the highest green space deprivation rating are accounted for by just two regions: (1) London and (2) the North West.
--   
-
-```{r, eval=FALSE}
-# The idea is to produce one bar chart for each green space rating, and across these plots use the same colour for a given region. 
-# choose a palette to work with
-region_pal <- brewer.pal(9, "Paired")
-
-# map the region names to a specific colour value (in a dataframe for ease)
-region_colours_df <- msoa_by_region_and_rating %>% 
-  select(region_name) %>% 
-  distinct(region_name) %>% 
-  add_column(colour = region_pal)
-
-# convert the region-colour mapping from a dataframe to a vector
-# because a vector is required by scale_fill_manual
-region_colours_vector <- region_colours_df$colour
-names(region_colours_vector) <- region_colours_df$region_name
-region_colours_vector
-
-
-plot_gsdr_prop_by_region <- function(rating = "A"){
-  
-    msoa_by_region_and_rating %>%
-      
-    # focus on the rating of interest
-    filter(green_space_deprivation_rating == rating) %>% 
-    mutate(proportion = n_msoa / sum(n_msoa)) %>%
-    
-    # create the bar chart
-    ggplot(mapping = aes(x = reorder(region_name, proportion), 
-                         y = proportion,
-                         fill = region_name
-                         )
-           ) +
-      
-    geom_col() +
-    
-    # apply region-colour mapping  
-    scale_fill_manual(values = region_colours_vector) +
-    
-    guides(fill = FALSE) +
-      
-    labs(title = str_c("MSOAs receiving green space deprivation rating: ", rating),
-         x = NULL,
-         y = str_c("Proportion of the MSOAs that recieved a rating of ", rating)
-         ) +
-    
-    coord_flip()
-}
-
-
-# produce one plot for each of the five green space deprivation ratings
-gsdr_prop_by_region_plots <- c("A", "B", "C", "D", "E") %>% 
-  map(~ plot_gsdr_prop_by_region(.x))
-
-gsdr_prop_by_region_plots
-
-```
-
-```{r, fig.width = 12.5, fig.height=7, eval=FALSE}
-
-d_plot <- gsdr_prop_by_region_plots[[4]] + 
-  ylim(0, 0.45) # ensure the plot axis scales match
-  
-e_plot <- gsdr_prop_by_region_plots[[5]] + 
-  ylim(0, 0.45) # ensure the plot axis scales match
-
-plot_grid(d_plot, e_plot, ncol = 2)
-```
-
-Could do ridgeline plots for each region - for prop rated A and proportion rated E
 
 ## The geographic distribution of green space deprivation ratings
 
