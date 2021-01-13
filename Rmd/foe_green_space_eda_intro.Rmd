@@ -20,6 +20,7 @@ library(gt)
 library(ggridges)
 library(janitor)
 library(kableExtra)
+library(skimr)
 ```
 
 ```{r set_document_defaults}
@@ -432,17 +433,12 @@ plot_msoas_by_region("n_msoa") +
 ```
 I was interest to understand in little more detail where the neighborhoods receiving the highest green space deprivation ratings (D and E). Below I plotted how the proportions of neighborhoods receiving a given rating (in this case D or E) are distributed across the English regions. Doing this involved addressing the challenge of how to ensure the colour associated with a given region was applied consistently across the two plots. This blog on [How to map a colour to a value of a categorical variable ...](https://www.stat.ubc.ca/~jenny/STAT545A/block17_colorsGgplot2Qualitative.html) was very helpful in addressing this challenge.
 
--   So we can clearly see the South East and Southwest have higher proportions of A rated MSOAs than say the North East and North West.
--   While outside of London, within each region there are similar proportion of neighbourhoods receiving the two highest green space deprivation ratings (D and E).
+Reviewing the plot below I noted that:
 
+-   For the highest green space deprivation ratings (D and E), the ranking of the regions is the same: (1) London, (2) North West, (3) South East, (4) Yorkshire and the Humber and (5) West Midlands.
+-   Over half of MSOAs given the highest green space deprivation ratings (D and E) are accounted for by just two regions: (1) London and (2) the North West. This shows that the worst impacts of green space deprivation are concentrated is certain areas. 
+- The scale of the green space deprivation issue varies cosniderably from region to region.
 
-
-
-This approach help me identify some additional insights:
-
--   For the highest green space deprivation ratings (D and E), the ranking of regions is the same: (1) London, (2) North West, (3) South East, (4) Yorkshire and the Humber and (5) West Midlands.
--   Over half of MSOAs given the highest green space deprivation rating are accounted for by just two regions: (1) London and (2) the North West.
--   
 
 ```{r setup_plot_gsdr_prop_by_region}
 # The idea is to produce one bar chart for each green space rating, and across these plots use the same colour for a given region. 
@@ -525,15 +521,109 @@ e_plot <- gsdr_prop_by_region_plots[[5]] +
 plot_grid(d_plot, e_plot, ncol = 2)
 ```
 
-Could do ridgeline plots for each region - for prop rated A and proportion rated E
-
-
 ## Is green space deprivation an urban problem?
 
--   Have FoE defined green space deprivation as an urban problem?
--   Does the underpinning data justify this?
+Having explored how green space deprivation is distributed across the English regions, I was interested to dig a little deeper into the question of where (in general rather than geographic sense) green space deprivation is a problem. In particular, it seems to intuitively make sense that green space deprivation is primarily an urban problem. I wanted to see if this intuition is born out by the data. 
 
-## 
+This involved finding a dataset which classified MSOAs (i.e. neighborhoods) by whether or not they can be considered urban. Find the appropriate ONS dataset took a little time and effort, but in the end I found an urban-rural classification conducted in 2001. Obviously it is not ideal to use a twenty year old data, when over that period it is likely that some rural MSOAs on the edges of urban areas will have become more developed. There was a more recent urban-classification conducted but the results do not appear to have been released as open data (the result are displayed on a web-GIS).
+
+
+
+The table below shows the breakdown of neighborhoods by both green space deprivation rating and the type of neighborhood as defined in the ONS dataset. With neighborhoods being classified into one of  three categories: (1) `urban > 10k`; (2) `town and fringe`; and, `Village Hamlet & Isolated Dwellings`. I also included an additional category for neighborhoods where it was not possible to identify an urban-rural classification (see column `NA_`). The percentages in the table sum to 100% column-wise. That is to say that the percentages show how the neighborhoods with each urban-rural classification breakdown over the five green space deprivation ratings.
+
+Reviewing the table I noted that:
+
+-   151 (approx. 2%) MSOAs in the Friends of the Earth dataset appear in the `NA_` column. In other words for these MSOAs it wasn't possible to This isn't ideal, but I decide to omit MSOAs where no urban-rural classification is available from the analysis conducted in this section of the notebook. Having looked at the names of the MSOAs appearing in the `NA_` column I think it would be possible to conduct some name matching between the datasets to impute at least some of the missing urban-rural classification values. However, at this stage I am not sure if this is worth the effort.
+-   There are only 8 neighborhoods outside in urban areas classified with a green space deprivation rating of D or E. This supports the idea that green space deprivation, at least in it's most acutre forms, is almost exclusively an urban issue.
+-   but almost 40% of urban MSOAs have green space deprivation ratings of A or B.
+
+```{r}
+
+green_space_urban_rural %>% 
+  mutate(morphology_name = fct_relevel(morphology_name, "Urban > 10K", "Town and Fringe", "Village Hamlet & Isolated Dwellings")) %>% 
+  tabyl(green_space_deprivation_rating, morphology_name) %>% 
+  adorn_totals("row") %>% 
+  adorn_percentages("col") %>% 
+  adorn_pct_formatting(rounding = "half up", digits = 0) %>%
+  adorn_ns() %>%
+  
+  kable() %>% 
+  kable_styling()
+  # gt() %>%
+  # grand_summary_rows(columns = vars(`Town and Fringe`, `Urban > 10K`,
+  #                                   `Village Hamlet & Isolated Dwellings`, NA_),
+  #                    fns = c(total = ~sum(.))
+  #                    )
+```
+
+```{r}
+green_space_urban_rural %>% 
+
+  count(green_space_deprivation_rating, morphology_name) %>%
+  filter(!is.na(morphology_name)) %>% 
+  
+  ggplot(mapping = aes(y = morphology_name, x = green_space_deprivation_rating, fill = n)
+         ) +
+  
+  geom_point(shape = 22, size = 15, colour = "grey50") +
+  scale_fill_viridis_c() +
+  
+  scale_y_discrete(labels = c("Urban", "Town and Fringe", "Village")) +
+  
+  labs(y = "Neighbourhood type",
+       x = "\nGreen space deprivation rating",
+       fill = "Number of \nNeighborhoods")
+```
+
+
+```{r, eval=FALSE}
+green_space_urban_rural %>% 
+  ggplot(mapping = aes(x = green_space_area_per_capita,
+                       y = morphology_name,
+                       fill = morphology_name)) +
+  geom_boxplot()
+           
+```
+
+```{r, eval=FALSE}
+green_space_urban_rural %>% 
+  skim(green_space_area_per_capita) %>% 
+  as_tibble() %>% 
+  clean_names()
+```
+
+```{r, eval=FALSE}
+green_space_urban_rural %>% 
+  ggplot(mapping = aes(x = green_space_area_per_capita,
+                       y = morphology_name,
+                       fill = morphology_name)) +
+  geom_boxplot() +
+  coord_cartesian(xlim = c(0, 1000))
+
+green_space_urban_rural %>% 
+  ggplot(mapping = aes(x = garden_area_per_capita,
+                       y = morphology_name,
+                       fill = morphology_name)) +
+  geom_boxplot() +
+  coord_cartesian(xlim = c(0, 1000))
+
+green_space_urban_rural %>% 
+  ggplot(mapping = aes(x = pcnt_pop_area_with_go_space_access,
+                       y = morphology_name,
+                       fill = morphology_name)) +
+  geom_boxplot() 
+```
+
+```{r, eval=FALSE}
+green_space_urban_rural %>%
+  filter(green_space_area_per_capita < 10000) %>% 
+  filter(garden_area_per_capita < 1000) %>% 
+  ggplot(mapping = aes(x = log(green_space_area_per_capita),
+                       y = log(garden_area_per_capita),
+                       colour = morphology_name)) +
+  geom_point() +
+  facet_wrap(~morphology_name)
+```
 
 ## What can the dataset tell us about what green space deprivation looks like in England?
 
@@ -933,31 +1023,9 @@ Rural-urban classication at MSOA scale
 
 ```
 
--   Urban rural classifications weren't available for 150 (approx. 2%) of MSOAs. This isn't ideal, but I don't think it will cause any big problems to drop these from further analyses that require these classification ...
--   there are only 8 MSOAs not in urban areas classified with a green space deprivation rating of D or E.
--   but almost 40% of urban MSOAs have green space deprivation ratings of A or B.
-
-```{r, eval=FALSE}
-# p <- ggplot(data = green_space_urban_rural,
-#             mapping = aes(y = green_space_deprivation_rating))
-# 
-# p + geom_tile(mapping = aes(x = ruc01cd))
 
 
-green_space_urban_rural %>% 
-  tabyl(green_space_deprivation_rating, morphology_name) %>% 
-  adorn_totals("row") %>% 
-  adorn_percentages("col") %>% 
-  adorn_pct_formatting(rounding = "half up", digits = 0) %>%
-  adorn_ns() %>%
-  
-  gt()
-  # gt() %>%
-  # grand_summary_rows(columns = vars(`Town and Fringe`, `Urban > 10K`,
-  #                                   `Village Hamlet & Isolated Dwellings`, NA_),
-  #                    fns = c(total = ~sum(.))
-  #                    )
-```
+
 
 **Some thoughts on where I am in understanding the FoE ratings and `green_space_area`:**
 
@@ -1044,54 +1112,7 @@ cluster_variables %>%
 
 So, I wondered about focusing on a subset of the data which could be easier to work with. Perhaps given the focus on green space deprivation it makes sense to remove those clearly green space affluent MSOAs (e.g. those with 10,000's m2 public green space per capita)
 
-```{r, eval=FALSE}
-green_space_urban_rural %>% 
-  ggplot(mapping = aes(x = green_space_area_per_capita,
-                       y = morphology_name,
-                       fill = morphology_name)) +
-  geom_boxplot()
-           
-```
 
-```{r, eval=FALSE}
-green_space_urban_rural %>% 
-  skim(green_space_area_per_capita) %>% 
-  as_tibble() %>% 
-  clean_names()
-```
-
-```{r, eval=FALSE}
-green_space_urban_rural %>% 
-  ggplot(mapping = aes(x = green_space_area_per_capita,
-                       y = morphology_name,
-                       fill = morphology_name)) +
-  geom_boxplot() +
-  coord_cartesian(xlim = c(0, 1000))
-
-green_space_urban_rural %>% 
-  ggplot(mapping = aes(x = garden_area_per_capita,
-                       y = morphology_name,
-                       fill = morphology_name)) +
-  geom_boxplot() +
-  coord_cartesian(xlim = c(0, 1000))
-
-green_space_urban_rural %>% 
-  ggplot(mapping = aes(x = pcnt_pop_area_with_go_space_access,
-                       y = morphology_name,
-                       fill = morphology_name)) +
-  geom_boxplot() 
-```
-
-```{r, eval=FALSE}
-green_space_urban_rural %>%
-  filter(green_space_area_per_capita < 10000) %>% 
-  filter(garden_area_per_capita < 1000) %>% 
-  ggplot(mapping = aes(x = log(green_space_area_per_capita),
-                       y = log(garden_area_per_capita),
-                       colour = morphology_name)) +
-  geom_point() +
-  facet_wrap(~morphology_name)
-```
 
 ```{r, eval=FALSE}
 # check for na's
