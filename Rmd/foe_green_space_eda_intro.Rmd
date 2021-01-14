@@ -528,51 +528,78 @@ Having explored how green space deprivation is distributed across the English re
 This involved finding a dataset which classified MSOAs (i.e. neighborhoods) by whether or not they can be considered urban. Find the appropriate ONS dataset took a little time and effort, but in the end I found an urban-rural classification conducted in 2001. Obviously it is not ideal to use a twenty year old data, when over that period it is likely that some rural MSOAs on the edges of urban areas will have become more developed. There was a more recent urban-classification conducted but the results do not appear to have been released as open data (the result are displayed on a web-GIS).
 
 
-
 The table below shows the breakdown of neighborhoods by both green space deprivation rating and the type of neighborhood as defined in the ONS dataset. With neighborhoods being classified into one of  three categories: (1) `urban > 10k`; (2) `town and fringe`; and, `Village Hamlet & Isolated Dwellings`. I also included an additional category for neighborhoods where it was not possible to identify an urban-rural classification (see column `NA_`). The percentages in the table sum to 100% column-wise. That is to say that the percentages show how the neighborhoods with each urban-rural classification breakdown over the five green space deprivation ratings.
 
 Reviewing the table I noted that:
 
--   151 (approx. 2%) MSOAs in the Friends of the Earth dataset appear in the `NA_` column. In other words for these MSOAs it wasn't possible to This isn't ideal, but I decide to omit MSOAs where no urban-rural classification is available from the analysis conducted in this section of the notebook. Having looked at the names of the MSOAs appearing in the `NA_` column I think it would be possible to conduct some name matching between the datasets to impute at least some of the missing urban-rural classification values. However, at this stage I am not sure if this is worth the effort.
--   There are only 8 neighborhoods outside in urban areas classified with a green space deprivation rating of D or E. This supports the idea that green space deprivation, at least in it's most acutre forms, is almost exclusively an urban issue.
--   but almost 40% of urban MSOAs have green space deprivation ratings of A or B.
+-   151 (approx. 2%) MSOAs in the Friends of the Earth dataset appear in the `NA_` column. In other words for these MSOAs it wasn't possible to identify if they were urban or rural. This isn't ideal, but I decide to omit MSOAs where no urban-rural classification is available from the analysis conducted in this section of the notebook. Having looked at the names of the MSOAs appearing in the `NA_` column I think it would be possible to conduct some name matching between the datasets to impute at least some of the missing urban-rural classification values. However, at this stage I am not sure if this is worth the effort.
+-   There are only 8 neighborhoods outside of urban areas classified with a green space deprivation rating of D or E. This supports the idea that green space deprivation, at least in it's most acute forms, is almost exclusively an urban issue.
+-   However, almost 40% of urban neighborhoods have green space deprivation ratings of A or B. This shows it has been possible for cities (and other urban areas) to develop in a way retains considerable amounts of green space for it's residents to enjoy. These urban neighborhoods with low green space deprivation ratings are a group that it would be interesting to explore further later in the analysis.
 
 ```{r}
 
 green_space_urban_rural %>% 
-  mutate(morphology_name = fct_relevel(morphology_name, "Urban > 10K", "Town and Fringe", "Village Hamlet & Isolated Dwellings")) %>% 
-  tabyl(green_space_deprivation_rating, morphology_name) %>% 
+  
+  # count occurrences the combinations for the two variables of interest
+  # i.e. create a two-way contingency table
+  tabyl(green_space_deprivation_rating, morphology_name) %>%
+  
+  # structure and format summary table
   adorn_totals("row") %>% 
   adorn_percentages("col") %>% 
   adorn_pct_formatting(rounding = "half up", digits = 0) %>%
   adorn_ns() %>%
   
+  # apply styling to table (here I'm trying out hte kable/kableExtra package)
   kable() %>% 
   kable_styling()
-  # gt() %>%
-  # grand_summary_rows(columns = vars(`Town and Fringe`, `Urban > 10K`,
-  #                                   `Village Hamlet & Isolated Dwellings`, NA_),
-  #                    fns = c(total = ~sum(.))
-  #                    )
+
 ```
+Reviewing the visual representation of the relationship - between green space deprivation rating and urban-rural classification of each neighborhood - below highlighted the following points.
+
+* The majority of neighborhoods are classified as urban (approximately 80%). With approximately 10% of neighborhoods being classified as in the other two categories (Town and Fringe; Village and Isolated Homes).
+* The approximately 30% of neighborhoods with the worst green space deprivation ratings are almost all located in urban areas.
 
 ```{r}
-green_space_urban_rural %>% 
-
-  count(green_space_deprivation_rating, morphology_name) %>%
-  filter(!is.na(morphology_name)) %>% 
+green_space_urban_rural %>%
   
+  # reorder urban-rural classification levels for plotting
+  mutate(morphology_name = fct_relevel(morphology_name, "Urban > 10K", "Town and Fringe", "Village Hamlet & Isolated Dwellings")) %>% 
+  
+  # calculate counts for the two variables of interest
+  count(green_space_deprivation_rating, morphology_name) %>%
+  
+  # omit NAs or now and calculate proportions
+  filter(!is.na(morphology_name)) %>%
+  mutate(prop = round(n / sum(n), 2)) %>%
+  
+  #remove rating-type combination which account for less than 1% of total num of MSOAs (which have an urban-rural classification)
+  filter(prop >= 0.01) %>%
+  
+  # dummy variable added to enable the use of different text colours in the plot
+  mutate(text_colour = if_else(prop > 0.17, "grey", "white")) %>% 
+  
+  # create the plot itself
   ggplot(mapping = aes(y = morphology_name, x = green_space_deprivation_rating, fill = n)
          ) +
   
-  geom_point(shape = 22, size = 15, colour = "grey50") +
+  geom_point(shape = 22, size = 20, colour = "grey50") +
   scale_fill_viridis_c() +
   
-  scale_y_discrete(labels = c("Urban", "Town and Fringe", "Village")) +
+  geom_text(mapping = aes(label = prop,
+                          colour = text_colour)) +
+  scale_color_manual(values = c("grey15", "white")) + # adjust text colours for readability
   
-  labs(y = "Neighbourhood type",
-       x = "\nGreen space deprivation rating",
-       fill = "Number of \nNeighborhoods")
+  scale_y_discrete(labels = c("Urban", "Town and\n Fringe", "Village and\nisolated\nhomes")) + # rename for readability
+  
+  labs(title = "Where are green space deprived neighborhoods?\nAn urban-rural perspective.\n",
+       subtitle = "The numbers within the boxes show proportions of English Neighborhoods.\nBoxes were not plotted for pairs accounting for proportions less than 0.01\n",
+       y = "Neighbourhood type\n",
+       x = "\nGreen space deprivation rating\n",
+       fill = "Number of \nNeighborhoods",
+       caption = "151 neighborhoods were omitted from this analysis as it\n was not possible to determine their neighborhood type") +
+  
+  guides(colour = FALSE)
 ```
 
 
@@ -640,6 +667,7 @@ green_space_urban_rural %>%
 -   Green space deprivation and Covid-19
 
 -   The demographics of green space deprivation
+- "These urban neighborhoods with low green space deprivation ratings are a group that it would be interesting to explore further later in the analysis."
 
 -   
 
