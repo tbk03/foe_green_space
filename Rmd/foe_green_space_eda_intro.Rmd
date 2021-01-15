@@ -653,8 +653,180 @@ green_space_urban_rural %>%
 ```
 
 ## What can the dataset tell us about what green space deprivation looks like in England?
+Having focused on the green space deprivation rating themselves so far, I was interested to understand more about the data that informed these ratings. The ratings are calculated using three green space scores (each ranging from 1 to 4), see page 36 of report for more details. In turn each of these scores was calculated based on (what I have called) summary variables:
 
--   Is there a trade-off between garden space and access to public green space?
+1. **The garden area per capita (m^2^ per person) within the neighborhood - ** hopefully fairly self explanatory and referred to as `garden_area_per_capita` in the dataset;
+2. **The public green space area per capita (m^2^ per person) - ** again hopefully fairly self explanatory (setting aside issues around the definition of public green space and how it might be identified) and referred to as`green_space_area_per_capita` in the dataset;
+3. **The proportion of population within the neighborhood within 5 minutes walks of public green space - ** This is the most complex summary variable and is referred to as `pcnt_pop_with_go_space_access` in the dataset. For this variable FoE considered only public green spaces of two or more hectacres in size. I am unsure how FoE calculated values for this variable, I assume some form of GIS analysis was involved. The definition of this variable is based on a Natural England standard. In turn this standard is based on research indicating that people access green space within five minutes walk considerable more frequently that green space beyond five minutes walk.
+
+In this section of the notebook I explore the distributions of, and correlations between, these three summary variables. Throughout this exploration I am seeking to better understand what green space deprivation looks like in England, and how this help me to better understand the FoE green space ratings. Which, in turn, I hope will inform my thinking about how to use statistical methods (e.g. k-means or k-medians clustering) to identify clusters of neighborhoods with similar green space characteristics. In this section I do however overlook for now the green space score variables, which FoE calculated from the summary variables. As each of the scores is essential a simplified version of one of the three summary variables.
+
+Before looking at each of the summary variables in more detail I take a very quick look at some descriptive statistics. Reviewing the table below, I note that:
+
+* The distributions of both `garden_area_per_capita` and `green_space_area_per_capita` are likely to be extremely right skewed. For example, the median value for `green_space_area_per_capita`is approximately 19m^2^ per person, the 75th percentile is approximately 48 and the maximum is over 100,000. So, when plotting these variables below it will probably be necessary to transform axis scales and/or omit very high values for green space areas from plots.
+* Obviously there is not the potential for such extreme values of `pcnt_pop_with_go_space_access` as it is a percentage and so all values neccesarily lie in the range of 0 to 100.
+
+```{r summary_variable_descriptive_statistics}
+green_space_urban_rural
+
+summary_var_desc_stats <- green_space_urban_rural %>% 
+  skim(garden_area_per_capita, green_space_area_per_capita, pcnt_pop_with_go_space_access) %>% 
+  as_tibble() %>% 
+  clean_names() %>% 
+  
+  mutate(across(.cols = where(is.numeric), ~round(.x, digits = 2)))
+
+summary_var_desc_stats
+```
+
+
+### Distributions of the summary variables 
+
+#### Garden area per capita
+
+Overall
+
+```{r}
+
+add_plot_background_colours <- function(shading_boundaries, alpha = 0.4){
+  list(geom_rect(data = shading_boundaries,
+                 mapping = aes(xmin = x_min, xmax = x_max, fill = score),
+                 ymin = - Inf, ymax = Inf, alpha = alpha),
+       
+       scale_fill_brewer(palette = "YlGn")
+  )
+}
+
+add_plot_background_lines <- function(shading_boundaries){
+  geom_vline(xintercept = shading_boundaries$x_max[1:3], colour = "grey50")
+}
+
+
+# define the boundaries for background shading 
+garden_shading_boundaries <- tibble(score = as_factor(c(1, 2, 3, 4)),
+                             x_min = c(-Inf, 56.88, 85.89, 138.73),
+                             x_max = c(56.88, 85.89, 138.73, Inf)
+                             )
+
+# define cut off for outliers and count the number omitted from the plot
+outlier_cutoff <- 5000
+outliers_removed <- green_space_urban_rural %>% 
+  filter(garden_area_per_capita >= outlier_cutoff) %>% 
+  tally() %>% 
+  as.integer()
+
+# set the base layer of the plot
+p <- ggplot(data = green_space_urban_rural %>% 
+              filter(garden_area_per_capita < outlier_cutoff)
+            )
+
+# add plot background layer
+p + add_plot_background_colours(garden_shading_boundaries) +
+  add_plot_background_lines(garden_shading_boundaries) +
+  
+  # add the plot of the data itself
+  geom_histogram(mapping = aes(x = garden_area_per_capita), fill = "grey60", colour = "grey50") +
+  
+  labs(title = "How much garden area per person do English Neighborhoods have?\n",
+       subtitle = "",
+       x = expression(paste("Garden area per capita (", m^2, " per person)")),
+       y = "Number of Neighborhoods\n",
+       caption = str_c("\nOutliers with garden area per capita above ", outlier_cutoff,
+                       ".\n", outliers_removed, " neighborhood/s removed."),
+       fill = "FoE Garden\nSpace Score")
+  
+  
+
+  
+```
+
+```{r}
+
+
+p + add_plot_background_colours(garden_shading_boundaries) +
+  
+  geom_jitter(mapping = aes(x = garden_area_per_capita, 
+                            y = green_space_deprivation_rating,
+                            colour = as_factor(gsdi_garden)),
+              alpha = 0.4) +
+  
+  scale_colour_brewer(palette = "YlGn") +
+  
+  geom_boxplot(mapping = aes(x = garden_area_per_capita, 
+                             y = green_space_deprivation_rating),
+               alpha = 0.1,
+               colour = "grey30", size = 1,
+               outlier.alpha = 0) +
+  
+  #coord_cartesian(xlim = c(0, 300)) +
+  guides(colour = FALSE)
+  
+  
+```
+
+
+By green space deprivation rating
+
+```{r eval = FALSE}
+rating_component_plots <- function(){
+  
+  # looking at the distribution of rating_component
+  plot(p + geom_density())
+  
+  plot(p + geom_density(mapping = aes(fill = green_space_deprivation_rating),
+                   alpha = 0.4))
+  
+  plot(p + geom_boxplot())
+  
+  plot(p + geom_histogram())
+  
+  
+  # break down plotting_component distribution by green space deprivation rating
+  p + geom_jitter(mapping = aes(y = green_space_deprivation_rating), 
+                alpha = 0.2, 
+                colour = "grey50") +
+    geom_boxplot(mapping = aes(y = green_space_deprivation_rating,
+                              fill = green_space_deprivation_rating), alpha = 0.5) +
+    guides(fill = FALSE)
+}
+
+# produce plots for garden_area_per_capita
+p <- ggplot(data = green_space %>% 
+              filter(garden_area_per_capita < 4000),# remove one outlier around 
+                                                    # 5000m2 to make plots readable
+            mapping = aes(x = garden_area_per_capita)
+            )
+
+rating_component_plots()
+# 
+# # 
+# p <- ggplot(data = green_space,
+#             mapping = aes(x = log(garden_area_per_capita))
+#             )
+# 
+# rating_component_plots()
+
+grouped_summary(df = green_space, 
+                grouping_var = green_space_deprivation_rating,
+                summary_var = garden_area_per_capita) %>% 
+  gt()
+```
+
+
+By urban-rural classification
+
+#### Public green space area per capita
+
+#### The proportion of population within the neighborhood within 5 minutes walks of public green space
+
+
+
+### Correlations between summary variables
+
+
+### Understanding the role of the underlying variables
+
+
 
 ## Summary / Conclusions
 
