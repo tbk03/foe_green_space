@@ -685,18 +685,45 @@ summary_var_desc_stats
 
 ### Distributions of the summary variables 
 
-#### Garden area per capita
+```{r summary_variable_plotting_func}
+# Define functions to be used across the plots in this section focused on summary variables
+# *****************************************************************************************
 
-
-```{r}
+#****************************
+# Utility plotting functions
+#****************************
 count_outliers_removed <- function(df, variable, cutoff){
+  
+  # returns a count of msoa where a give variable exceeds as cutoff
+  # used for calculating the number of msoas removed from a given plot
+  
   df %>% 
     filter({{variable}} >= cutoff) %>% 
     tally() %>% 
     as.integer()
 }
 
+set_outlier_variables <- function(df, variable, cutoff){
+  
+  outlier_cutoff <- cutoff
+  
+  outliers_removed <- count_outliers_removed(df, {{variable}}, outlier_cutoff)
+  
+  maximum_point <- df %>%
+    summarise(max = max({{variable}})) %>% 
+    as.double()
+
+  
+  c(outliers_removed, maximum_point)
+}
+
+
+#****************************
+# Background layer plotting
+#****************************
 add_plot_background_colours <- function(shading_boundaries, alpha = 0.4){
+  # adds one of two background layers to a summary variable plot
+  
   list(geom_rect(data = shading_boundaries,
                  mapping = aes(xmin = x_min, xmax = x_max, fill = score),
                  ymin = - Inf, ymax = Inf, alpha = alpha),
@@ -706,13 +733,21 @@ add_plot_background_colours <- function(shading_boundaries, alpha = 0.4){
 }
 
 add_plot_background_lines <- function(shading_boundaries){
+  # adds one of two background layers to a summary variable plot
+  
   geom_vline(xintercept = shading_boundaries$x_max[1:3], colour = "grey50")
 }
 
+#****************************
+# Core plotting functions
+#****************************
+
 green_space_histogram <- function(x, shading_boundaries, ...){
+  # plots common elements of the summary variable histograms 
+  
   list(
     
-    # add background layer
+    # add the two background layers
     add_plot_background_colours(shading_boundaries),
     add_plot_background_lines(shading_boundaries),
   
@@ -725,65 +760,16 @@ green_space_histogram <- function(x, shading_boundaries, ...){
   )
 }
 
-add_garden_plot_labels <- function(){
-  labs(x = expression(paste("Garden area per capita (", m^2, " per person)")),
-       caption = str_c(outliers_removed, " neighborhoods with garden area per capita \n between ", outlier_cutoff,
-                       " and ", max_garden_space, " omitted from the plot."),
-       fill = "FoE Garden\nSpace Score"
-       )
-}
-
-
-# define the boundaries for background shading 
-garden_shading_boundaries <- tibble(score = as_factor(c(1, 2, 3, 4)),
-                             x_min = c(-Inf, 56.88, 85.89, 138.73),
-                             x_max = c(56.88, 85.89, 138.73, Inf)
-                             )
-
-# define cut off for outliers and count the number omitted from the plot
-outlier_cutoff <- 800
-outliers_removed <- count_outliers_removed(green_space_urban_rural, garden_area_per_capita, outlier_cutoff)
-max_garden_space <- round(max(green_space_urban_rural$garden_area_per_capita))
-
-# set the base layer of the plot
-p <- ggplot(data = green_space_urban_rural)
-
-# create summary variable histogram
-p + green_space_histogram(x = garden_area_per_capita,
-                          shading_boundaries = garden_shading_boundaries,
-                          binwidth = 25) +
-  
-  labs(title = "How much garden area per person do English Neighborhoods have?\n",
-       subtitle = "") +
-  
-  add_garden_plot_labels() +
-  
-  coord_cartesian(xlim = c(0, outlier_cutoff))
-  
-  
-
-  
-```
-
-```{r}
-
 green_space_boxplot <- function(x, y, gs_score, shading_boundaries){
-  list(add_plot_background_colours(shading_boundaries, alpha = 0.2),
+  # plots common elements of the summary variable boxplots 
   
-      # geom_jitter(mapping = aes(x = {{x}}, 
-      #                           y = {{y}},
-      #                           fill = as_factor({{gs_score}})),
-      #             alpha = 0.2,
-      #             shape = 21, colour = "grey80"),
-      
-      
+  list(add_plot_background_colours(shading_boundaries, alpha = 0.2),
+
       geom_jitter(mapping = aes(x = {{x}},
                                 y = {{y}}),
                   alpha = 0.4,
                   colour = "grey80"),
-      
-#      scale_colour_brewer(palette = "YlGn"), # set points to the same colour scheme as backgrounf
-      
+
       geom_boxplot(mapping = aes(x = {{x}}, 
                                  y = {{y}}),
                    alpha = 0.1,
@@ -796,23 +782,100 @@ green_space_boxplot <- function(x, y, gs_score, shading_boundaries){
       )
   
 }
+```
 
 
-p + green_space_boxplot(x = garden_area_per_capita, y = green_space_deprivation_rating, 
-                        gs_score = gsdi_garden,
-                        shading_boundaries = garden_shading_boundaries) +
-    
-    add_garden_plot_labels() +
-    
-    labs(title = "Garden area per capita for English neighborhoods \n(broken down by the extent of green space deprivation)\n",
-         y = "Green space deprivation rating\n") +
+#### Garden area per capita
+
+
+```{r garden_space_plotting_func}
+
+# define functions to be used across the plots in the garden space per capita plots
+# *****************************************************************************************
+
+add_garden_plot_labels <- function(removed, cutoff, maximum){
+  
+  # adds labels which shared in all the garden space per capita plots
+  labs(x = expression(paste("Garden area per capita (", m^2, " per person)")),
+       caption = str_c(removed, " neighborhoods with garden area per capita \n between ", cutoff,
+                       " and ", maximum, " omitted from the plot."),
+       fill = "FoE Garden\nSpace Score"
+       )
+}
+
+```
+
+```{r garden_space_plot_setup}
+
+# define the boundaries for background shading 
+garden_shading_boundaries <- tibble(score = as_factor(c(1, 2, 3, 4)),
+                             x_min = c(-Inf, 56.88, 85.89, 138.73),
+                             x_max = c(56.88, 85.89, 138.73, Inf)
+                             )
+
+```
+
+```{r}
+# define cut off for outliers and count the number omitted from the plot
+outlier_cutoff <- 800
+out <- set_outlier_variables(green_space_urban_rural, garden_area_per_capita, outlier_cutoff)
+outliers_removed = out[1]
+max_garden_space = round(out[2])
+
+
+# set the base layer of the plot
+p <- ggplot(data = green_space_urban_rural)
+
+# create summary variable histogram
+p + green_space_histogram(x = garden_area_per_capita,
+                          shading_boundaries = garden_shading_boundaries,
+                          binwidth = 25) +
+  
+  labs(title = "How much garden area per person do English Neighborhoods have?\n",
+       subtitle = "") +
+  
+  add_garden_plot_labels(removed = outliers_removed,
+                         cutoff = outlier_cutoff, 
+                         maximum = max_garden_space) +
   
   coord_cartesian(xlim = c(0, outlier_cutoff))
+```
+
+
+```{r}
+garden_area_boxplot_rating <- function(cutoff = 800){
   
+  out <- set_outlier_variables(green_space_urban_rural, garden_area_per_capita, cutoff)
+  outliers_removed = out[1]
+  max_garden_space = round(out[2])
+  
+  p <- ggplot(data = green_space_urban_rural)
+  
+  p + green_space_boxplot(x = garden_area_per_capita, y = green_space_deprivation_rating, 
+                          gs_score = gsdi_garden,
+                          shading_boundaries = garden_shading_boundaries) +
+      
+      add_garden_plot_labels(removed = outliers_removed,
+                           cutoff = cutoff, 
+                           maximum = max_garden_space) +
+      
+      labs(title = "Garden area per capita for English neighborhoods \n(broken down by the extent of green space deprivation)\n",
+           y = "Green space deprivation rating\n") +
+    
+    coord_cartesian(xlim = c(0, cutoff))
+}
+
+garden_area_boxplot_rating()
+garden_area_boxplot_rating(250)  
   
 ```
 
 ```{r}
+garden_area_boxplot_urb_rur <- function(cutoff = 800){
+  out <- set_outlier_variables(green_space_urban_rural, garden_area_per_capita, cutoff)
+  outliers_removed = out[1]
+  max_garden_space = round(out[2])
+
 
 p + green_space_boxplot(x = garden_area_per_capita, y = morphology_name, 
                         gs_score = gsdi_garden, 
@@ -823,9 +886,16 @@ p + green_space_boxplot(x = garden_area_per_capita, y = morphology_name,
     labs(title = "Garden area per capita for English neighborhoods \n(broken down by urban-rural classification)\n",
          y = "Neighborhood type\n") +
     
-    add_garden_plot_labels() +
+    add_garden_plot_labels(removed = outliers_removed,
+                           cutoff = cutoff, 
+                           maximum = max_garden_space) +
   
-  coord_cartesian(xlim = c(0, outlier_cutoff))
+  coord_cartesian(xlim = c(0, cutoff))
+}
+
+garden_area_boxplot_urb_rur()
+garden_area_boxplot_urb_rur(600)
+garden_area_boxplot_urb_rur(400)
 
 ```
 
