@@ -815,7 +815,7 @@ garden_shading_boundaries <- tibble(score = as_factor(c(1, 2, 3, 4)),
 
 ```
 
-```{r}
+```{r garden_histogram}
 # define cut off for outliers and count the number omitted from the plot
 outlier_cutoff <- 800
 out <- set_outlier_variables(green_space_urban_rural, garden_area_per_capita, outlier_cutoff)
@@ -842,7 +842,7 @@ p + green_space_histogram(x = garden_area_per_capita,
 ```
 
 
-```{r}
+```{r garden_box_plot_rating}
 garden_area_boxplot_rating <- function(cutoff = 800){
   
   out <- set_outlier_variables(green_space_urban_rural, garden_area_per_capita, cutoff)
@@ -870,7 +870,7 @@ garden_area_boxplot_rating(250)
   
 ```
 
-```{r}
+```{r garden_box_plot_urb_rur}
 garden_area_boxplot_urb_rur <- function(cutoff = 800){
   out <- set_outlier_variables(green_space_urban_rural, garden_area_per_capita, cutoff)
   outliers_removed = out[1]
@@ -890,11 +890,10 @@ p + green_space_boxplot(x = garden_area_per_capita, y = morphology_name,
                            cutoff = cutoff, 
                            maximum = max_garden_space) +
   
-  coord_cartesian(xlim = c(0, cutoff))
+    coord_cartesian(xlim = c(0, cutoff))
 }
 
 garden_area_boxplot_urb_rur()
-garden_area_boxplot_urb_rur(600)
 garden_area_boxplot_urb_rur(400)
 
 ```
@@ -949,94 +948,140 @@ grouped_summary(df = green_space,
 
 #### Public green space area per capita
 
-```{r}
-add_public_green_space_plot_labels <- function(){
+```{r public_space_plotting_func}
+
+# define functions to be used across the plots in the public green space per capita plots
+# *****************************************************************************************
+
+add_public_green_space_plot_labels <- function(removed, cutoff, maximum){
+  
+  # adds labels which shared in all the public green space per capita plots
   labs(x = expression(paste("Public green space area per capita (", m^2, " per person)")),
-       caption = bquote(.(outliers_removed) ~ "neighborhoods with green space area per capita between" ~
-                        .(outlier_cutoff) ~"and"~ .(max_public_green_space) ~ m^2 ~ "omitted from the plot."),
+       caption = bquote(.(removed) ~ "neighborhoods with green space area per capita between" ~
+                        .(cutoff) ~"and"~ .(maximum) ~ m^2 ~ "omitted from the plot."),
        fill = "FoE Public\nGreen Space\nScore"
        )
 }
 
+```
+
+```{r public_space_plotting_setup}
 # define the boundaries for background shading 
 public_space_shading_boundaries <- tibble(score = as_factor(c(1, 2, 3, 4)),
                                           x_min = c(-Inf, 9, 33, 50),
                                           x_max = c(9, 33, 50, Inf)
                                           )
+```
 
-# define cut off for outliers and count the number omitted from the plot
+
+```{r public_space_histogram}
+
+# set x axis cutoff
 outlier_cutoff <- 500
-outliers_removed <- count_outliers_removed(green_space_urban_rural, green_space_area_per_capita, outlier_cutoff)
-max_public_green_space = round(max(green_space_urban_rural$green_space_area_per_capita))
+out <- set_outlier_variables(green_space_urban_rural, green_space_area_per_capita, outlier_cutoff)
+outliers_removed = out[1]
+max_public_green_space = round(out[2])
 
 
 # set the base layer of the plot
 p <- ggplot(data = green_space_urban_rural)
 
-
+# plot summary variable histogram
 p + green_space_histogram(x = green_space_area_per_capita,
                           shading_boundaries = public_space_shading_boundaries,
                           binwidth = 10) +
   
-  add_public_green_space_plot_labels() +
+  add_public_green_space_plot_labels(outliers_removed, outlier_cutoff, max_public_green_space) +
   coord_cartesian(xlim = c(0, outlier_cutoff)) +
   
   labs(title = "How much public green space per person do English Neighborhoods have?\n",
        subtitle = "")
   
-  
 ```
-```{r}
-# define cut off for outliers and count the number omitted from the plot
-outlier_cutoff <- 700
-outliers_removed <- count_outliers_removed(green_space_urban_rural, green_space_area_per_capita, outlier_cutoff)
 
 
-p + green_space_boxplot(x = green_space_area_per_capita, y = green_space_deprivation_rating, 
+```{r public_space_boxplot_rating}
+public_gs_area_boxplot_rating <-  function(cutoff = 750){
+  
+  # set x axis cutoff
+  out <- set_outlier_variables(green_space_urban_rural, green_space_area_per_capita, cutoff)
+  outliers_removed = out[1]
+  max_public_green_space = round(out[2])
+  
+  # set the base layer of the plot
+  p <- ggplot(data = green_space_urban_rural)
+  
+  p + green_space_boxplot(x = green_space_area_per_capita, y = green_space_deprivation_rating, 
                         gs_score = gsdi_avg_area,
                         shading_boundaries = public_space_shading_boundaries) +
     
-  add_public_green_space_plot_labels() +
+  add_public_green_space_plot_labels(outliers_removed, outlier_cutoff, max_public_green_space) +
   
-  coord_cartesian(xlim = c(0, outlier_cutoff)) +
+  coord_cartesian(xlim = c(0, cutoff)) +
     
   labs(title = "Public green space per capita for English neighborhoods \n(broken down by the extent of green space deprivation)\n",
        y = "Green space deprivation rating\n")
+  }
+
+
+public_gs_area_boxplot_rating()
+public_gs_area_boxplot_rating(cutoff = 100)
+
+
 
 ```
-```{r}
-# define cut off for outliers and count the number omitted from the plot
-outlier_cutoff <- 1250
-outliers_removed <- count_outliers_removed(green_space_urban_rural, green_space_area_per_capita, outlier_cutoff)
+```{r public_space_boxplot_urban_rural}
 
-p + green_space_boxplot(x = green_space_area_per_capita, y = morphology_name, 
+public_gs_area_boxplot_urb_rur <-  function(cutoff = 1250){
+  
+  # set x axis cutoff
+  out <- set_outlier_variables(green_space_urban_rural, green_space_area_per_capita, cutoff)
+  outliers_removed = out[1]
+  max_public_green_space = round(out[2])
+
+  # set the base layer of the plot
+  p <- ggplot(data = green_space_urban_rural)
+
+  p + green_space_boxplot(x = green_space_area_per_capita, y = morphology_name, 
                         gs_score = gsdi_avg_area,
                         shading_boundaries = public_space_shading_boundaries) +
     
-  add_public_green_space_plot_labels() +
+  add_public_green_space_plot_labels(outliers_removed, outlier_cutoff, max_public_green_space) +
+    
   scale_y_discrete(labels = c(neighborhood_type_labs, "Unknown")) + # rename for readability
 
-  
-  coord_cartesian(xlim = c(0, outlier_cutoff)) +
+  coord_cartesian(xlim = c(0, cutoff)) +
     
   labs(title = "Public green space per capita for English neighborhoods \n(broken down by urban rural classifcation)\n",
        y = "Neighborhood type\n")
+}
+
+public_gs_area_boxplot_urb_rur()
+public_gs_area_boxplot_urb_rur(cutoff = 200)
 
 ```
+```{r gs_access_plotting_func}
 
-#### The proportion of population within the neighborhood within 5 minutes walks of public green space
-```{r}
+# define functions to be used across the plots in the public green space per capita plots
+# *****************************************************************************************
+
 add_access_plot_labels <- function(){
   labs(x = "\nPercentage of the population within 5 minutes walk of public green space",
        fill = "FoE Public\nGreen Space\nAccess Score")
 }
+```
 
+```{r gs_access_plotting_setup}
 # define the boundaries for background shading 
 access_shading_boundaries <- tibble(score = as_factor(c(1, 2, 3, 4)),
                                           x_min = c(-Inf, 25, 50, 75),
                                           x_max = c(25, 50, 75, Inf)
                                           )
-green_space_urban_rural
+```
+
+
+#### The proportion of population within the neighborhood within 5 minutes walks of public green space
+```{r}
 
 # set the base layer of the plot
 p <- ggplot(data = green_space_urban_rural)
@@ -1046,7 +1091,9 @@ p + green_space_histogram(x = pcnt_pop_with_go_space_access,
                           shading_boundaries = access_shading_boundaries,
                           binwidth = 2.5) +
   
-  add_access_plot_labels()
+  add_access_plot_labels() +
+  
+  labs(title = "How easy is it for people to access public green space\nin English Neighborhoods?\n")
   
   
 ```
@@ -1058,7 +1105,7 @@ p + green_space_boxplot(x = pcnt_pop_with_go_space_access, y = green_space_depri
     
     add_access_plot_labels() +
 
-    labs(title = "... \n(broken down by the extent of green space deprivation)\n",
+    labs(title = "Accessibility of public green space across England's neighborhoods\n(broken down by the extent of green space deprivation)\n",
          y = "Green space deprivation rating\n")
 ```
 ```{r}
@@ -1069,7 +1116,7 @@ p + green_space_boxplot(x = pcnt_pop_with_go_space_access, y = morphology_name,
     add_access_plot_labels() +
     scale_y_discrete(labels = c(neighborhood_type_labs, "Unknown")) +# rename for readability
   
-    labs(title = "... \n(broken down by urban rural classifcation)\n",
+    labs(title = "Accessibility of public green space across England's neighborhoods\n(broken down by urban rural classifcation)\n",
        y = "Neighborhood type\n")
 ```
 
