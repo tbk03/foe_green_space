@@ -719,14 +719,14 @@ set_outlier_variables <- function(df, variable, cutoff){
 #****************************
 # Background layer plotting
 #****************************
-add_plot_background_colours <- function(shading_boundaries, alpha = 0.4){
+add_plot_background_colours <- function(shading_boundaries, alpha = 0.4, ...){
   # adds one of two background layers to a summary variable plot
   
   list(geom_rect(data = shading_boundaries,
                  mapping = aes(xmin = x_min, xmax = x_max, fill = score),
                  ymin = - Inf, ymax = Inf, alpha = alpha),
        
-       scale_fill_brewer(palette = "YlGn")
+       scale_fill_brewer(palette = "YlGn", ...)
   )
 }
 
@@ -816,8 +816,12 @@ garden_shading_boundaries <- tibble(score = as_factor(c(1, 2, 3, 4)),
 
 The first summary variable I looked at in detail is average garden area per capita. The histogram below shows the numbers of neighborhoods with different average garden area per capita. This gives a sense of how much garden space (per capita) English neighborhoods have. The frequency distribution is heavily right skewed. With most neighborhoods have average garden area per capita of less than 200 m2, and then a long tail consisting of relatively few neighborhoods up to 800m2. Note that the x axis of the plot does not display a number of neighborhoods in the dataset (see the caption for details). 
 
+Consider the relative distribution of garden space across neighborhoods in England is relatively straight forward. It is more challenging to understand what the implications of this distribution are. Develop such understanding would require comparison with some benchmark values. My initial searches suggest that there may be limited research on how much garden space per capita is a "good" amount in terms of creating benefits whether for health and well-being (e.g relaxation and stress reduction) or the environment (e.g. through improved drainage and reduced flood risk). 
 
-Consider the relative distribution of garden space across neighborhoods in England is relatively straight forward. It is more challenging to understand what the implications of this distribution are. Develop such understanding would require comparison with some benchmark values. My initial searches suggest that there may be limited research on how much garden space per capita is a "good" amount in terms of creating benefits whether for health and wellbeing (e.g relaxation and stress reduction) or the environment (e.g. through improved drainage and reduced flood risk). There is also the question of how the value (in it's broadest sense encompassing the types of benefits discussed above) of additional garden space. So, clear the value  
+In my admittedly fairly cursory searches to date I did find garden space guidelines within the [Essex Design Guide](https://www.essexdesignguide.co.uk/design-details/architectural-details/garden-size/); an evolving set of guidelines that has shaped development in the English county of Essex for over 45 years. The Essex Design guide recommends minimum garden sizes of 100m^2^ per household. A figure which is said to allow for a wide range household activities and the sunlight needed to grow plants. For smaller houses where space is at a premium the guide recommends 50m^2^ per household. Sticking with the higher of the two figures as a benchmark, and making a crude assumption that on average is occupied by 2 people, 50m^2^ garden space per capita might be considered a minimum standard. Here the conversion between per household figures and per capita figures is needed because the FoE dataset provides only the later. 
+
+The FoE green space scores shown on the background of the histogram correspond to the quartiles of the `garden_area_per_capita` variable. With a score 1 indicating neighborhoods in the first quartile (i.e. bottom 25% for garden space per capita), and a score of 4 indicating neighborhoods in the fourth quartile (i.e. top 25%). So, from the histogram below we can see that more than 75% of English neighborhoods have more than 50m^2^ garden space per capita. Which in turn suggests that the most of the English population may not be affected by severe green space deprivation due to lack of garden space.
+
 
 ```{r garden_histogram}
 # define cut off for outliers and count the number omitted from the plot
@@ -842,7 +846,9 @@ p + green_space_histogram(x = garden_area_per_capita,
                          cutoff = outlier_cutoff, 
                          maximum = max_garden_space) +
   
-  coord_cartesian(xlim = c(0, outlier_cutoff))
+  coord_cartesian(xlim = c(0, outlier_cutoff)) +
+  
+  scale_x_continuous(breaks = c(seq(from = 0, to = 800, by = 50)))
 ```
 * An idea of sorts - trying to show something about how much of overall garden space is accessible to how many people
 
@@ -863,20 +869,30 @@ p + geom_line(mapping = aes(x = garden_area_per_capita,
               colour = "grey40",
               size = 1.5
               ) +
-  add_plot_background_colours(garden_shading_boundaries) +
+  add_plot_background_colours(garden_shading_boundaries,
+                              labels = c("Q1", "Q2", "Q3", "Q4")) +
   add_plot_background_lines(garden_shading_boundaries) +
   geom_hline(yintercept = c(0.25, 0.5, 0.75),
              colour = "grey50",
              linetype = "dashed") +
+  
   scale_x_log10() +
   
   labs(x = "\nAverage garden area per capita of Engish neighborhoods",
-       y = "Cumulative proportion of the garden area in England\n")
+       y = "Cumulative proportion of the garden area in England\n",
+       fill = "Quartile")
+
   
   
 
 ```
 
+
+Reviewing the garden area plots above also lead me to consider following points (although I didn't have the opportunity explore them in detail).
+
+* The figures within the FoE dataset identify the average (presumably mean, although I need to check this) amount of garden area per capita for neighborhoods in England. With the data to hand it is not possible to understand the distribution of green space within neighborhoods. Hence, it is possible the use of average garden area per capita data at the neighborhood is obscuring the skewed distributions of garden area within neighborhoods. This issue seems more likely to be occurring where neighborhoods have different types of housing stock within them, which in turn are likely to have different amounts of garden space. For example, a neighborhood could have a housing stock split between flats (with little or no gardens) and houses with large gardens. It might be possible to explore this issue a further using the ONS green space data (included within the FoE dataset) as this does distinguish between flats and houses within each neighborhood.
+* There is also the question of how the value (in it's broadest sense encompassing the types of benefits discussed above) of additional garden space. So, it seems reasonable to assume that if an individual moves from having 0 and 25m^2^ of garden space the well-being benefits would be significant. However, it is less clear that if an individual moving from say having 200 to 225 m^2^ of garden space that there would be significant benefits.
+* There is an implicit assumption in this analysis that garden space is green space. However, some garden are likely to be predominately gray (e.g paved) and some are likely to be not well managed (e.g. overgrown). So, it might be interesting in future work to consider how the quality of garden space might be modeled, and how this might inform additional analysis of the garden area data. 
 
 ```{r garden_box_plot_rating}
 garden_area_boxplot_rating <- function(cutoff = 800){
@@ -912,22 +928,24 @@ garden_area_boxplot_urb_rur <- function(cutoff = 800){
   outliers_removed = out[1]
   max_garden_space = round(out[2])
 
+  p <- ggplot(data = green_space_urban_rural)
 
-p + green_space_boxplot(x = garden_area_per_capita, y = morphology_name, 
-                        gs_score = gsdi_garden, 
-                        shading_boundaries = garden_shading_boundaries) +
-  
-    scale_y_discrete(labels = c(neighborhood_type_labs, "Unknown")) + # rename for readability
+
+  p + green_space_boxplot(x = garden_area_per_capita, y = morphology_name, 
+                          gs_score = gsdi_garden, 
+                          shading_boundaries = garden_shading_boundaries) +
     
-    labs(title = "Garden area per capita for English neighborhoods \n(broken down by urban-rural classification)\n",
-         y = "Neighborhood type\n") +
+      scale_y_discrete(labels = c(neighborhood_type_labs, "Unknown")) + # rename for readability
+      
+      labs(title = "Garden area per capita for English neighborhoods \n(broken down by urban-rural classification)\n",
+           y = "Neighborhood type\n") +
+      
+      add_garden_plot_labels(removed = outliers_removed,
+                             cutoff = cutoff, 
+                             maximum = max_garden_space) +
     
-    add_garden_plot_labels(removed = outliers_removed,
-                           cutoff = cutoff, 
-                           maximum = max_garden_space) +
-  
-    coord_cartesian(xlim = c(0, cutoff))
-}
+      coord_cartesian(xlim = c(0, cutoff))
+    }
 
 garden_area_boxplot_urb_rur()
 garden_area_boxplot_urb_rur(400)
