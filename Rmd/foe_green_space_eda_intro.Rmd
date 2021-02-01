@@ -761,11 +761,11 @@ green_space_histogram <- function(x, shading_boundaries, ...){
 green_space_boxplot <- function(x, y, gs_score, shading_boundaries){
   # plots common elements of the summary variable boxplots 
   
-  list(add_plot_background_colours(shading_boundaries, alpha = 0.2),
+  list(add_plot_background_colours(shading_boundaries, alpha = 0.4),
 
       geom_jitter(mapping = aes(x = {{x}},
                                 y = {{y}}),
-                  alpha = 0.4,
+                  alpha = 1,
                   colour = "grey80"),
 
       geom_boxplot(mapping = aes(x = {{x}}, 
@@ -850,9 +850,17 @@ p + green_space_histogram(x = garden_area_per_capita,
   
   scale_x_continuous(breaks = c(seq(from = 0, to = 800, by = 50)))
 ```
-* An idea of sorts - trying to show something about how much of overall garden space is accessible to how many people
+I was also interested in finding a way to visualise how equally or unequally garden space is distributed across English neighborhoods. The plot below is a a first effort at this. Although I think it might need further work as it is tricky to interpret. 
 
-```{r}
+Anyway, as it stands the plot shows the cumulative proportion of garden area in England as accounted for by neighborhoods with average garden area per captia. Note the average garden variable is plotted on a log scale. The background colours and vertical lines show the quartiles for the average garden space variable. While the horizontal dotted lines corresponds to quartiles for the cumulative proportion of garden area in England.
+
+So, for example reading off the plot where the curve meets the horizontal/vertical lines we can see that:
+
+* the bottom 50% of neighborhoods (by average garden area per capita) account for approximately 25% of the garden space in England;
+* the top 25% of neighborhoods (by average garden area per capita) account for approximately just over  50% of the garden space in England;
+* the bottom 25% of neighborhoods (by average garden area per capita) account for approximately 6-7% of the garden space in England
+
+```{r, warning=FALSE}
 
 gardens <- green_space_urban_rural %>% 
   select(garden_area_per_capita, garden_area_total) %>% 
@@ -894,6 +902,39 @@ Reviewing the garden area plots above also lead me to consider following points 
 * There is also the question of how the value (in it's broadest sense encompassing the types of benefits discussed above) of additional garden space. So, it seems reasonable to assume that if an individual moves from having 0 and 25m^2^ of garden space the well-being benefits would be significant. However, it is less clear that if an individual moving from say having 200 to 225 m^2^ of garden space that there would be significant benefits.
 * There is an implicit assumption in this analysis that garden space is green space. However, some garden are likely to be predominately gray (e.g paved) and some are likely to be not well managed (e.g. overgrown). So, it might be interesting in future work to consider how the quality of garden space might be modeled, and how this might inform additional analysis of the garden area data. 
 
+##### Understanding garden area per capita for groups of neighborhoods
+
+I was interested to understand more about how garden space per capita for groups of neighborhoods with (perhaps) similar characteristics. In particular, for:
+
+* Neighborhoods with different FoE green space deprivation ratings;
+* and, urban and rural neighborhoods.
+
+So, I started by looking at garden area per capita broken by the FoE green space deprivation ratings. This is shown in the two boxplots below, as a way to deal with the highly right skewed nature of the data. The second plot essentially zooms in on part of the first to show more detail. I chose this two plot approach rather than a logarithmic scale because the later would have distorted the shape of the boxplots making them more difficult to interpret.
+
+The plots comprise of three layers:
+
+* The coloured background showing FoE garden space score boundaries (i.e. the quartiles in statistical terminology);
+* Grey points representing where each neighborhood lies on the axis. Given the number of neighborhoods in the dataset a vertical jitter was used to reduce overplotting. This a presentational device only, so aside from showing the green space deprivation rating of a neighborhood the vertical position of point conveys no other information.
+* The boxplots themselves which follow standard statistical conventions.
+
+
+```{r garden_summary_stats_by_rating}
+garden_summary_stats_by_rating <- green_space_urban_rural %>% 
+  select(garden_area_per_capita, green_space_deprivation_rating) %>% 
+  group_by(green_space_deprivation_rating) %>% 
+  skim()
+  
+garden_summary_stats_by_rating
+
+```
+
+
+Reviewing the two plots I noted:
+
+* For neighborhoods with ratings D and E similar distributions of garden space per capita can be observed. The median for D rated neighborhoods (50 m^2^) is slightly higher than the median for E rated neighborhoods ((33.5 m^2^). The similarities are accentuated by the cutoff applied in the FoE classification method, where to be rated D or E a given neighborhood must have a garden area per capita value lower than the overall average (i.e. a neighborhood must be in the bottom 50% of neighborhoods for garden space per capita).
+* We see the counter intuitive situation whereby it appears that neighborhoods rated B tend to have less garden space per capita than those rated C. For example, the median value for neighborhoods with a B rating is 91.2 m^2^, while for those rated C it is 93.9 m^2^. Additionally, there are no C rated neighborhoods in Q1 of the overall garden area per capita distribution. Whereas, there are B rated neighborhoods in Q1 of the overall distribution. So, there are neighborhoods rated B (i.e. the second least green space deprived category) which are within the bottom 25% of neighborhoods for garden space.
+* Thinking back to the rule of thumb derived from the Essex Design Guide that 50 m^2^ garden area per capita might be considered a minimum. The median garden area per capita is above this figure for all rating groups execept rating group A. 
+ 
 ```{r garden_box_plot_rating}
 garden_area_boxplot_rating <- function(cutoff = 800){
   

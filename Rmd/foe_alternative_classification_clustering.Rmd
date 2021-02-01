@@ -1,0 +1,13 @@
+---
+title: "Clustering"
+output: html_notebook
+---
+
+## Ideas
+
+* Utility function for garden area per capita
+* Incorporating flats / no gardens
+* Rescaling variables 
+  - range (0-1)
+  - variance?
+  - weighting?
