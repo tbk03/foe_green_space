@@ -918,7 +918,7 @@ The plots comprise of three layers:
 * The boxplots themselves which follow standard statistical conventions.
 
 
-```{r garden_summary_stats_by_rating}
+```{r garden_summary_stats_by_rating, include = FALSE}
 garden_summary_stats_by_rating <- green_space_urban_rural %>% 
   select(garden_area_per_capita, green_space_deprivation_rating) %>% 
   group_by(green_space_deprivation_rating) %>% 
@@ -933,7 +933,7 @@ Reviewing the two plots I noted:
 
 * For neighborhoods with ratings D and E similar distributions of garden space per capita can be observed. The median for D rated neighborhoods (50 m^2^) is slightly higher than the median for E rated neighborhoods ((33.5 m^2^). The similarities are accentuated by the cutoff applied in the FoE classification method, where to be rated D or E a given neighborhood must have a garden area per capita value lower than the overall average (i.e. a neighborhood must be in the bottom 50% of neighborhoods for garden space per capita).
 * We see the counter intuitive situation whereby it appears that neighborhoods rated B tend to have less garden space per capita than those rated C. For example, the median value for neighborhoods with a B rating is 91.2 m^2^, while for those rated C it is 93.9 m^2^. Additionally, there are no C rated neighborhoods in Q1 of the overall garden area per capita distribution. Whereas, there are B rated neighborhoods in Q1 of the overall distribution. So, there are neighborhoods rated B (i.e. the second least green space deprived category) which are within the bottom 25% of neighborhoods for garden space.
-* Thinking back to the rule of thumb derived from the Essex Design Guide that 50 m^2^ garden area per capita might be considered a minimum. The median garden area per capita is above this figure for all rating groups execept rating group A. 
+* Thinking back to the rule of thumb derived from the Essex Design Guide that 50 m^2^ garden area per capita might be considered a minimum. The median garden area per capita is above this figure for all rating groups except rating group A. 
  
 ```{r garden_box_plot_rating}
 garden_area_boxplot_rating <- function(cutoff = 800){
@@ -962,6 +962,13 @@ garden_area_boxplot_rating()
 garden_area_boxplot_rating(250)  
   
 ```
+
+I was also interested in understanding if and how `garden_area_per_capita` varies in different ways for urban and rural neighborhoods. So, I produced an additional boxplots below this time distinguishing between neighborhoods on the y axis using the ONS urban-rural classifications. Again it was helpful to first produce an overall plot, and then produce a second plot zooming in on the x axis. Reviewing the two plots I noted that:
+
+* Unsurprisingly neighborhoods classified as "Villages and isolated homes" tend to have more `garden_area_per_capita` than neighborhoods classified as "Town and Fringe". In turn, those classified as "Town and Fringe" tend to have more `garden_area_per_capita` than those classified as urban.
+* Almost every one of the neighborhoods classified as "Villages and isolated homes" is in the upper quartile of all English neighborhoods for `garden_area_per_capita`. 
+* Almost none of the neighborhoods classified as "Villages and isolated homes" are in the bottom quartile of all English neighborhoods for `garden_area_per_capita`. 
+* This highlights that the most severe form of garden space deprivation is almost exclusively an urban issue. That said there `garden_area_per_capita` for urban neighborhoods varies over a relatively wide range. With the boxplots showing that median `garden_area_per_capita` for urban neighborhoods is approximately 90 m^2^ per capita. While considerable numbers of urban neighborhoods are within the two quartiles of of all English neighborhoods for `garden_area_per_capita`.
 
 ```{r garden_box_plot_urb_rur}
 garden_area_boxplot_urb_rur <- function(cutoff = 800){
@@ -993,52 +1000,24 @@ garden_area_boxplot_urb_rur(400)
 
 ```
 
-```{r eval = FALSE}
-rating_component_plots <- function(){
-  
-  # looking at the distribution of rating_component
-  plot(p + geom_density())
-  
-  plot(p + geom_density(mapping = aes(fill = green_space_deprivation_rating),
-                   alpha = 0.4))
-  
-  plot(p + geom_boxplot())
-  
-  plot(p + geom_histogram())
-  
-  
-  # break down plotting_component distribution by green space deprivation rating
-  p + geom_jitter(mapping = aes(y = green_space_deprivation_rating), 
-                alpha = 0.2, 
-                colour = "grey50") +
-    geom_boxplot(mapping = aes(y = green_space_deprivation_rating,
-                              fill = green_space_deprivation_rating), alpha = 0.5) +
-    guides(fill = FALSE)
-}
 
-# produce plots for garden_area_per_capita
-p <- ggplot(data = green_space %>% 
-              filter(garden_area_per_capita < 4000),# remove one outlier around 
-                                                    # 5000m2 to make plots readable
-            mapping = aes(x = garden_area_per_capita)
-            )
-
-rating_component_plots()
-# 
-# # 
-# p <- ggplot(data = green_space,
-#             mapping = aes(x = log(garden_area_per_capita))
-#             )
-# 
-# rating_component_plots()
-
-grouped_summary(df = green_space, 
-                grouping_var = green_space_deprivation_rating,
-                summary_var = garden_area_per_capita) %>% 
-  gt()
-```
 
 #### Public green space area per capita
+
+I then turned to look at the second summary variable - public `green_space_area_per_capita` and produced a similar set of plots to those produced above for `garden_area_per_capita`. It is worth noting on this set of plots the background coloring show how FoE have grouped neighborhoods according to public `green_space_area_per_capita`. The scores are defined as follows:
+
+1. public `green_space_area_per_capita` $\lt$ 9m^2^;
+2. 9m^2^ $\le$ public `green_space_area_per_capita` $\lt$ 33m^2^;
+3. 33m^2^ $\le$ public `green_space_area_per_capita` $\lt$ 50m^2^;
+4. 50m^2^ $\le$ public `green_space_area_per_capita`.
+
+It is important note that these score represent normative assessments of what very small (1), small (2), large (3) and very large (4) amounts of public `green_space_area_per_capita` look like. In particular, to is worth being clear that this is a different approach to that used by FoE to score `garden_space_area_per_capita` (where the scores were derived from the data itself using quartiles).  
+
+The issues with interpreting the public `green_space_area_per_capita` data are relatively similar to those discussed above for `garden_area_per_capita`. Issues which include: 
+
+* It being relatively easy to understand the relative distribution of public `green_space_area_per_capita` across English neighborhoods. While it is much more challenging to understand the implication of this, and how much public green space is a 'good' or useful amount. 
+* My initial and fairly quick searches for public green space area benchmarks did not identify much in the way readily useful frameworks or information. Rather it appears the most widely quoted and citied benchmark (a World Health Organization recommendation of the minimum amounts of green space per capita 9m^2^) [cannot be attributed to a specific source document](https://www.researchgate.net/post/I-see-many-studies-citing-WHO-for-their-international-minimum-standard-for-green-space-9m2-per-capita-But-where-is-the-actual-study).
+
 
 ```{r public_space_plotting_func}
 
@@ -1064,6 +1043,11 @@ public_space_shading_boundaries <- tibble(score = as_factor(c(1, 2, 3, 4)),
                                           x_max = c(9, 33, 50, Inf)
                                           )
 ```
+
+First considering the distribution of public `green_space_area_per_capita` across all English neighborhoods I plotted the histogram below. Reviewing the plot I noted:
+
+* The similarities to the distribution of `garden_area_per_capita` plot (see above).
+* 
 
 ```{r public_space_histogram}
 
@@ -1105,7 +1089,7 @@ public_gs_area_boxplot_rating <-  function(cutoff = 750){
                         gs_score = gsdi_avg_area,
                         shading_boundaries = public_space_shading_boundaries) +
     
-  add_public_green_space_plot_labels(outliers_removed, outlier_cutoff, max_public_green_space) +
+  add_public_green_space_plot_labels(outliers_removed, cutoff, max_public_green_space) +
   
   coord_cartesian(xlim = c(0, cutoff)) +
     
@@ -1234,6 +1218,7 @@ p + green_space_boxplot(x = pcnt_pop_with_go_space_access, y = morphology_name,
 -   
 
 ## The distribution of green space deprivation ratings across England
+
 
 ```{r, eval=FALSE}
 # As a starting point - select the three indices (GSDI_...) that make up the rating (and the data that these indices are calculated from)
@@ -1923,3 +1908,49 @@ p + geom_segment(mapping = aes(x = green_space_deprivation_rating,
 -   Use above and below median income to facet plots (as in covid-19) ...
 -   Is there an equivalent approach for ethnicity? Where might the boundary be drawn (the national average proportion of BAME population)?
 -   Green space affluent vs. green space deprived?
+
+
+```{r eval = FALSE}
+rating_component_plots <- function(){
+  
+  # looking at the distribution of rating_component
+  plot(p + geom_density())
+  
+  plot(p + geom_density(mapping = aes(fill = green_space_deprivation_rating),
+                   alpha = 0.4))
+  
+  plot(p + geom_boxplot())
+  
+  plot(p + geom_histogram())
+  
+  
+  # break down plotting_component distribution by green space deprivation rating
+  p + geom_jitter(mapping = aes(y = green_space_deprivation_rating), 
+                alpha = 0.2, 
+                colour = "grey50") +
+    geom_boxplot(mapping = aes(y = green_space_deprivation_rating,
+                              fill = green_space_deprivation_rating), alpha = 0.5) +
+    guides(fill = FALSE)
+}
+
+# produce plots for garden_area_per_capita
+p <- ggplot(data = green_space %>% 
+              filter(garden_area_per_capita < 4000),# remove one outlier around 
+                                                    # 5000m2 to make plots readable
+            mapping = aes(x = garden_area_per_capita)
+            )
+
+rating_component_plots()
+# 
+# # 
+# p <- ggplot(data = green_space,
+#             mapping = aes(x = log(garden_area_per_capita))
+#             )
+# 
+# rating_component_plots()
+
+grouped_summary(df = green_space, 
+                grouping_var = green_space_deprivation_rating,
+                summary_var = garden_area_per_capita) %>% 
+  gt()
+```
