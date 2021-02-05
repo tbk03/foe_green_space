@@ -1017,6 +1017,7 @@ The issues with interpreting the public `green_space_area_per_capita` data are r
 
 * It being relatively easy to understand the relative distribution of public `green_space_area_per_capita` across English neighborhoods. While it is much more challenging to understand the implication of this, and how much public green space is a 'good' or useful amount. 
 * My initial and fairly quick searches for public green space area benchmarks did not identify much in the way readily useful frameworks or information. Rather it appears the most widely quoted and citied benchmark (a World Health Organization recommendation of the minimum amounts of green space per capita 9m^2^) [cannot be attributed to a specific source document](https://www.researchgate.net/post/I-see-many-studies-citing-WHO-for-their-international-minimum-standard-for-green-space-9m2-per-capita-But-where-is-the-actual-study).
+* The heavily skewed nature of the distribution of the variable and the need to adapt plots to ensure they are easy to interpret.
 
 
 ```{r public_space_plotting_func}
@@ -1044,10 +1045,13 @@ public_space_shading_boundaries <- tibble(score = as_factor(c(1, 2, 3, 4)),
                                           )
 ```
 
+
+
 First considering the distribution of public `green_space_area_per_capita` across all English neighborhoods I plotted the histogram below. Reviewing the plot I noted:
 
-* The similarities to the distribution of `garden_area_per_capita` plot (see above).
-* 
+* The similarities to the distribution of `garden_area_per_capita` histogram (see above).
+* The distribution is heavily right skewed with a long tail representing relatively small numbers of numbers of neighborhoods with very large amounts of public `green_space_area_per_capita`. 
+
 
 ```{r public_space_histogram}
 
@@ -1073,6 +1077,29 @@ p + green_space_histogram(x = green_space_area_per_capita,
        subtitle = "")
   
 ```
+
+Quickly checking the summary statistics (see below) highlights the following points:
+
+* The median (19.17 m^2^ of public `green_space_area_per_capita`) is a more reliable measure of center than the mean (244.72 m^2^). As the mean is influenced byt he long right tail of the distribution.
+* The neighborhood at the 75% percentile has 48.03 m^2^ of public `green_space_area_per_capita`.
+* Given the skewed nature of the data the inter quartile range is likely to be a more reliable measure of the spread than the standard deviation. In this case the inter quartile range is approximately 40 m^2^, comapred to a standard deviation of approximately 2350 m^2^.
+
+```{r}
+green_space_urban_rural %>% 
+  skim_without_charts(green_space_area_per_capita) %>% 
+  as_tibble() %>% 
+  gather()
+# broom::tidy(summary(green_space_urban_rural$green_space_area_per_capita)) %>% 
+#   mutate(iqr = IQR(green_space_urban_rural$green_space_area_per_capita),
+#          sd = sd(green_space_urban_rural$green_space_area_per_capita))
+```
+
+Following a similar approach to the previous section (which focused on `garden_area_per_capita`), I next turned to exploring how public `green_space_area_per_capita` is distributed across different sub-groups of neighborhoods. First, grouping neighborhoods by the FoE green space deprivation rating, and then by urban-rural classification.
+
+The two boxplots below show the grouping by the FoE green space deprivation rating. The second plot is simply a cropped version of the first, helping to make the more densely populated sections of the distribution easier to interpret. Reviewing these plots, I noted:
+
+* The distribution of neighborhoods within each rating group is intuitively understandable. With the median value for each sub-group rising as from E to A. So, as one would expect neighborhoods in group E tend to have less public `green_space_area_per_capita` than those in group D (and so on).
+* The boxplots for groups D and C however look fairly similar, and within rating B half of neighborhoods have less than approximately 25 m^2^ `green_space_area_per_capita`. These are interesting results as ratings D and E are identified as those as in the most urgent need of action to address green space deprivation. Yet neighborhoods with small amounts of `green_space_area_per_capita` have also been included in lower rating groups (B and C).
 
 ```{r public_space_boxplot_rating}
 public_gs_area_boxplot_rating <-  function(cutoff = 750){
@@ -1104,6 +1131,15 @@ public_gs_area_boxplot_rating(cutoff = 100)
 
 
 ```
+The two boxplots below show the grouping by urban-rural classification. Reviewing these plots, I noted:
+
+* There could be two distinct sub-groups within the neighborhoods classified as Town and Fringe - (1) those more urban in nature; and (2) those more rural in nature. This hunch is based on the dense cluster of neighborhoods around 10-30 m^2^ and more diffuse spread of nieghborhoods for higher values of public `green_space_area_per_capita`.
+* For neighborhoods classified as urban, the values of public `green_space_area_per_capita` range widely from 0 to more than 1200 m^2". So, while a typical urban area (as shown by the median line of the boxplot at approximately 20m^2^) has relatively little public `green_space_area_per_capita`. There are considerable numbers of urban neighborhoods with relatively large amounts of public `green_space_area_per_capita`.
+* Similarly, for neighborhoods classified as Villages and isolated homes the values of public `green_space_area_per_capita` range widely from 0 to more than 1200 m^2". With a relatively dense cluster of neighborhoods around 30 m^2^.
+* Considering the median value for each sub-group they appear in the order one would expect. With the median value for 'Village and isolated homes' being greater than 'Town and Fringe', which in turn is greater than 'Urban'.
+* Overall this suggests several sub-groups of neighboorhoods which might be interesting to explore further:
+  - Urban neighborhoods with relatively large amounts of public `green_space_area_per_capita`;
+  - 'Town and Fringe', and 'Village and Isolated Home', neighborhoods with relatively small amounts of public `green_space_area_per_capita`;
 
 ```{r public_space_boxplot_urban_rural}
 
