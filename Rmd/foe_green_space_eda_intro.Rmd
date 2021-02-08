@@ -1204,7 +1204,20 @@ access_shading_boundaries <- tibble(score = as_factor(c(1, 2, 3, 4)),
 ```
 
 ```{r}
-green_space_urban_rural
+good_access <- green_space_urban_rural %>% 
+  select(pcnt_pop_with_go_space_access) %>% 
+  mutate(great_than_50_good_access = (pcnt_pop_with_go_space_access >= 50))
+  
+  
+prop_neigh_with_50_plus <- good_access %>% 
+  summarise(num_neighborhoods = sum(great_than_50_good_access),
+            prop_neighborhoods = round(sum(great_than_50_good_access) / n(), 2)
+            ) %>% 
+  pull(prop_neighborhoods)
+
+median_pop_with_good_access <- good_access %>% 
+  summarise(median_good_access = round(median(pcnt_pop_with_go_space_access))) %>% 
+  pull()
 ```
 
 
@@ -1212,8 +1225,11 @@ The histogram below shows how many English neighborhoods have certain percentage
 
 * The background coloring layers of the plot are not too informative in this case as the FoE Public Green Space Access score boundaries shown correspond to fixed, uniformly distributed values on the x axis (0, 25, 50 and 75% of the population with good access to public green space).
 * Between approximately 0 and 40 percent of the population with good access to public green space the numbers of neighborhoods is fairly constant.
-* Between approximately 40 and 100 percent of the population with good access to public green space the numbers of neighborhoods declines in a linear fashion.
-
+* Between approximately 40 and 100 percent of the population with good access to public green space the numbers of neighborhoods declines in a linear fashion. 
+* Only `r prop_neigh_with_50_plus * 100`% of neighborhoods have more than 50% of their population with good access to public green space.
+* Or conversely, `r (1 - prop_neigh_with_50_plus) * 100`% of neighborhoods have less than 50% of their population with good access to public green space.
+* The median neighborhood has `r median_pop_with_good_access` percent of its population with good public green space access.
+* Overall, the above suggests, that there is a widespread green space deprivation problem in the form of limited access to public green space within easy (i.e. 5 min) walking distance.
 
 
 ```{r}
@@ -1232,6 +1248,7 @@ p + green_space_histogram(x = pcnt_pop_with_go_space_access,
   
   
 ```
+I wonder if there some factors at play which are making the problem look worse than it is ... for example, low density rural neighborhoods where public green space is relatively distant from small populations.
 
 
 ```{r}
