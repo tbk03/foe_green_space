@@ -1172,6 +1172,18 @@ public_gs_area_boxplot_urb_rur(cutoff = 200)
 
 ```
 
+#### The proportion of population within the neighborhood within 5 minutes walks of public green space
+
+Finally, I turn to the third summary variable that informs the FoE Green Space Deprivation Ratings: `pcnt_pop_with_go_space_access`. Referred to here in the text of this notebook as percentage of population with good green space access. More specifically, this variable estimates the percentage of the population (of a given neighborhood) who live within a five minute walk of 2 hectares of green space. This is a standard defined by Natural England for green space accessibility (although I couldn't find the underpinning report cited by FoE, it looks like it has been archived by the government). Footnote 129 in the FoE England's Green Space gap report provides further details on their approach to calculating `pcnt_pop_with_go_space_access` as follows: 
+
+"We calculate this using 300 meters in a straight-line as being a 5-minutes’ walk. 300 meters is less than the 400 meters that most people would walk in 5 minutes but takes into account that more urban journeys to a public green space are unlikely to be in a straight line."
+
+The format of the plots in this section is similar to the those in the sections above. 
+
+* I begin by reviewing the distribution of percentage of population with good green space access. 
+*I then reviewing in turn how the distribution of percentage of population with good green space access breaks down by FoE Green Space Deprivation rating, and urban-rural classification.
+
+
 ```{r gs_access_plotting_func}
 
 # define functions to be used across the plots in the public green space per capita plots
@@ -1191,7 +1203,18 @@ access_shading_boundaries <- tibble(score = as_factor(c(1, 2, 3, 4)),
                                           )
 ```
 
-#### The proportion of population within the neighborhood within 5 minutes walks of public green space
+```{r}
+green_space_urban_rural
+```
+
+
+The histogram below shows how many English neighborhoods have certain percentages of their populations with good access to public green space. Reviewing the plot I noted: 
+
+* The background coloring layers of the plot are not too informative in this case as the FoE Public Green Space Access score boundaries shown correspond to fixed, uniformly distributed values on the x axis (0, 25, 50 and 75% of the population with good access to public green space).
+* Between approximately 0 and 40 percent of the population with good access to public green space the numbers of neighborhoods is fairly constant.
+* Between approximately 40 and 100 percent of the population with good access to public green space the numbers of neighborhoods declines in a linear fashion.
+
+
 
 ```{r}
 
@@ -1209,6 +1232,7 @@ p + green_space_histogram(x = pcnt_pop_with_go_space_access,
   
   
 ```
+
 
 ```{r}
 p + green_space_boxplot(x = pcnt_pop_with_go_space_access, y = green_space_deprivation_rating, 
