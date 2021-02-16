@@ -3,6 +3,17 @@ title: "Clustering"
 output: html_notebook
 ---
 
+```{r, echo=FALSE}
+library(tidyverse)
+library(readxl)
+library(janitor) # for clean names
+library(psycho) # for tidyverse friendly variable standardisation and centering
+```
+
+```{r source_gs_project_functions}
+source("../R_code/green_space_functions.R")
+```
+
 ## Ideas
 
 * Utility function for garden area per capita
@@ -11,3 +22,104 @@ output: html_notebook
   - range (0-1)
   - variance?
   - weighting?
+  
+  
+## Read in data
+
+
+
+### 1.1. Access to private green space (gardens)
+The ONS (Office for National Statistics) provides [data on access to private green space](https://www.ons.gov.uk/economy/environmentalaccounts/datasets/accesstogardensandpublicgreenspaceingreatbritain) (i.e. access to gardens) for each Local Authority District in Great Britain. Here I am using the most recent April 2020 edition of the data. I quickly, manually edited the ONS excel file to make it easier use the `read_excel` function for data import. Given it is unlikely that the ONS data will be updated during the course of this analysis, it was preferable to go for the quicker manual process than investing time in a re-producible programmatic approach.
+
+```{r, import gs 1}
+
+normalise <- function(x){
+  (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE)) 
+}
+
+gardens <- read_ons_garden_data()
+
+# select data of interest for clustering
+gardens <- gardens %>% 
+  # remove columns relating to house and flats, leaving columns relating to all households (i.e the total for both houses and flats)
+  select(!(country_code:lad_name)) %>% 
+  select(!(address_count_9:average_number_of_flats_sharing_a_garden)) %>% 
+  rename(add_count = address_count_22,
+         add_with_gar_count = adress_with_private_outdoor_space_count_23,
+         total_gar_area = private_outdoor_space_total_area_m2_24,
+         perc_add_with_gar = percentage_of_adresses_with_private_outdoor_space_25, 
+         ave_gar_size = average_size_of_private_outdoor_space_m2_26) 
+
+# trying to understand how ons figures are calculated
+gardens %>% 
+  mutate(perc_add_with_gar_calc = add_with_gar_count / add_count,
+         ons_calc_comp_perc = perc_add_with_gar/ perc_add_with_gar_calc,
+         ave_gar_size_calc = total_gar_area / add_with_gar_count,
+         ons_calc_comp_size = ave_gar_size / ave_gar_size_calc) %>% 
+  summarise(mean_comp_perc = mean(ons_calc_comp_perc, na.rm = TRUE),
+            mean_comp_size = mean(ons_calc_comp_size, na.rm = TRUE))
+
+gardens_focus <- gardens %>% 
+  select(msoa_code, msoa_name, perc_add_with_gar, ave_gar_size) %>%
+  
+  
+  # transform variables
+  mutate(log_ave_gar_size = log(ave_gar_size),
+         log_reflect_perc_add_with_gar = log(max(perc_add_with_gar + 1, na.rm = TRUE) - perc_add_with_gar)) %>% 
+  # scale and centre
+  #mutate(across(.cols = where(is.numeric), .fns = scale))
+  mutate(across(.cols = where(is.numeric), .fns = normalise)) 
+  
+p <- ggplot(data = gardens_focus)
+
+p + geom_histogram(mapping = aes(x = log_reflect_perc_add_with_gar)) 
+p + geom_histogram(mapping = aes(x = log_ave_gar_size))
+
+```
+
+```{r}
+
+foe_green_space <- read_foe_data()
+
+foe_green_space_focus <- foe_green_space %>% 
+  select(msoa_code, msoa_name, green_space_area_per_capita, pcnt_pop_with_go_space_access) %>%
+  
+  # transform variables of interest
+  mutate(log_green_space_area_per_capita = log(green_space_area_per_capita + 1),
+         sqrt_pcnt_pop_with_go_space_access = sqrt(pcnt_pop_with_go_space_access)
+         ) %>%
+  
+  # scale and centre
+  mutate(across(.cols = where(is.numeric), .fns = scale)) #%>% 
+  #mutate(across(.cols = where(is.numeric), .fns = normalise))
+  
+foe_green_space_focus %>% 
+  skimr::skim()
+
+p <- ggplot(data = foe_green_space_focus)
+
+p + geom_histogram(mapping = aes(x = log_green_space_area_per_capita))
+
+p + geom_histogram(mapping = aes(x = sqrt_pcnt_pop_with_go_space_access))
+```
+
+```{r}
+z_iris <- iris %>% 
+  psycho::standardize() 
+
+summary(z_iris)
+```
+
+
+```{r}
+
+# could create a reflect function
+%>% 
+  mutate(reflect_perc_add_with_gar = max(perc_add_with_gar, na.rm = TRUE) - perc_add_with_gar)
+
+p <-  ggplot(data = gardens,
+             mapping = aes(x = reflect_perc_add_with_gar))
+
+p + geom_histogram() + scale_x_log10()
+```
+

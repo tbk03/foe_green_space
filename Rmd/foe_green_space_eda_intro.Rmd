@@ -23,6 +23,12 @@ library(kableExtra)
 library(skimr)
 ```
 
+```{r source_gs_project_functions}
+source("../R_code/green_space_functions.R")
+```
+
+
+
 ```{r set_document_defaults}
 # set the default ggplot theme for the whole notebook
 theme_set(theme_minimal())
@@ -110,12 +116,7 @@ data_sources %>%
 
 ```{r read_in_data, include=FALSE}
 
-# read the core Friends of the Earth dataset
-green_space <- read_excel("../Data/(FOE) Green Space Consolidated Data - England - Version 2.1.xlsx",
-                          sheet = "MSOAs V2.1") %>%
-  # inconsistent naming conventions for variables are used in the source data
-  # some needed to clean names for consitency (variables names are now )
-  clean_names()
+green_space <- read_foe_data()
 
 # The FoE data doesn't include a variable for the region each MSOA/local authority lies within
 # So, I imported a look up table from the ONS, which maps between Local Authority Districts and Regions
