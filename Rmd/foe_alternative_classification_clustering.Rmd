@@ -7,11 +7,17 @@ output: html_notebook
 library(tidyverse)
 library(readxl)
 library(janitor) # for clean names
-library(psycho) # for tidyverse friendly variable standardisation and centering
+library(tidymodels)
 ```
 
-```{r source_gs_project_functions}
+```{r project_functions}
 source("../R_code/green_space_functions.R")
+```
+
+```{r notebook_functions}
+normalise <- function(x){
+  (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE)) 
+}
 ```
 
 ## Ideas
@@ -23,35 +29,38 @@ source("../R_code/green_space_functions.R")
   - variance?
   - weighting?
   
+**Preparing data for clustering: **
+
+* Read in data from excel
+* clean data
+* explore data (if needed)
+* transform data for clustering
   
-## Read in data
-
-
-
-### 1.1. Access to private green space (gardens)
+  
+## Prepare garden data for clustering
 The ONS (Office for National Statistics) provides [data on access to private green space](https://www.ons.gov.uk/economy/environmentalaccounts/datasets/accesstogardensandpublicgreenspaceingreatbritain) (i.e. access to gardens) for each Local Authority District in Great Britain. Here I am using the most recent April 2020 edition of the data. I quickly, manually edited the ONS excel file to make it easier use the `read_excel` function for data import. Given it is unlikely that the ONS data will be updated during the course of this analysis, it was preferable to go for the quicker manual process than investing time in a re-producible programmatic approach.
 
-```{r, import gs 1}
-
-normalise <- function(x){
-  (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE)) 
-}
+```{r import_gardens}
 
 gardens <- read_ons_garden_data()
 
-# select data of interest for clustering
-gardens <- gardens %>% 
-  # remove columns relating to house and flats, leaving columns relating to all households (i.e the total for both houses and flats)
+# focus on variables of interest
+gardens_focus <- gardens %>% 
+  
+  # remove columns relating to house and flats, 
+  # leaving columns relating to all households 
+  # (i.e the total for both houses and flats)
+  
   select(!(country_code:lad_name)) %>% 
   select(!(address_count_9:average_number_of_flats_sharing_a_garden)) %>% 
   rename(add_count = address_count_22,
          add_with_gar_count = adress_with_private_outdoor_space_count_23,
          total_gar_area = private_outdoor_space_total_area_m2_24,
          perc_add_with_gar = percentage_of_adresses_with_private_outdoor_space_25, 
-         ave_gar_size = average_size_of_private_outdoor_space_m2_26) 
+         ave_gar_size = average_size_of_private_outdoor_space_m2_26)
 
-# trying to understand how ons figures are calculated
-gardens %>% 
+# quickly exploring the data trying to understand how ONS figures are calculated
+gardens_focus %>% 
   mutate(perc_add_with_gar_calc = add_with_gar_count / add_count,
          ons_calc_comp_perc = perc_add_with_gar/ perc_add_with_gar_calc,
          ave_gar_size_calc = total_gar_area / add_with_gar_count,
@@ -59,59 +68,134 @@ gardens %>%
   summarise(mean_comp_perc = mean(ons_calc_comp_perc, na.rm = TRUE),
             mean_comp_size = mean(ons_calc_comp_size, na.rm = TRUE))
 
-gardens_focus <- gardens %>% 
-  select(msoa_code, msoa_name, perc_add_with_gar, ave_gar_size) %>%
+# focus down further on variables of interest
+gardens_focus <- gardens_focus %>% 
+  select(msoa_code, msoa_name, perc_add_with_gar, ave_gar_size)
   
-  
-  # transform variables
+# transform variables of interest to more normal distributions
+gardens_trans <- gardens_focus %>% 
   mutate(log_ave_gar_size = log(ave_gar_size),
-         log_reflect_perc_add_with_gar = log(max(perc_add_with_gar + 1, na.rm = TRUE) - perc_add_with_gar)) %>% 
-  # scale and centre
-  #mutate(across(.cols = where(is.numeric), .fns = scale))
-  mutate(across(.cols = where(is.numeric), .fns = normalise)) 
+         log_reflect_perc_add_with_gar = 1 / (max(perc_add_with_gar + 1, na.rm = TRUE) - perc_add_with_gar + 1),
+         exp_perc_add_with_gar = 10**(perc_add_with_gar),
+         to_power_six_perc_add_with_gar = perc_add_with_gar**6) 
   
-p <- ggplot(data = gardens_focus)
 
-p + geom_histogram(mapping = aes(x = log_reflect_perc_add_with_gar)) 
-p + geom_histogram(mapping = aes(x = log_ave_gar_size))
+# Create dataframe of scaled and centred garden data
+gardens_scaled <- gardens_trans %>%
+  mutate(across(.cols = where(is.numeric), 
+                .fns = scale,
+                .names = "scale_{.col}"
+                )
+         )
+
+# Create dataframe of normalised data
+gardens_norm <- gardens_trans %>%
+  mutate(across(.cols = where(is.numeric), 
+                .fns = normalise,
+                .names = "norm_{.col}"
+                )
+         )
+
+# plot scaled data
+p <- ggplot(data = gardens_scaled)
+
+p + geom_histogram(mapping = aes(x = scale_to_power_six_perc_add_with_gar)) 
+p + geom_histogram(mapping = aes(x = scale_log_ave_gar_size))
+
+# plot normalised data
+p <- ggplot(data = gardens_norm)
+
+p + geom_histogram(mapping = aes(x = norm_to_power_six_perc_add_with_gar)) 
+p + geom_histogram(mapping = aes(x = norm_log_ave_gar_size))
 
 ```
 
-```{r}
+## Prepare public green space data for clustering
 
+```{r}
+# read in data from excel
 foe_green_space <- read_foe_data()
 
+# focus on variables of interest
 foe_green_space_focus <- foe_green_space %>% 
-  select(msoa_code, msoa_name, green_space_area_per_capita, pcnt_pop_with_go_space_access) %>%
+  select(msoa_code, msoa_name, green_space_area_per_capita, pcnt_pop_with_go_space_access)
   
-  # transform variables of interest
+# transform variables of interest to more normal distributions
+foe_green_space_trans <- foe_green_space_focus %>% 
   mutate(log_green_space_area_per_capita = log(green_space_area_per_capita + 1),
-         sqrt_pcnt_pop_with_go_space_access = sqrt(pcnt_pop_with_go_space_access)
-         ) %>%
+         sqrt_pcnt_pop_with_go_space_access = sqrt(pcnt_pop_with_go_space_access),
+         .keep = "unused"
+         )
+
+# Create dataframe of scaled and centred garden data
+foe_green_space_scaled <- foe_green_space_trans %>% 
+  mutate(across(.cols = where(is.numeric), 
+                .fns = scale,
+                .names = "scale_{.col}"
+                )
+         )
+
+# Create dataframe of normalised data
+foe_green_space_norm <- foe_green_space_trans %>% 
+  mutate(across(.cols = where(is.numeric), 
+                .fns = normalise,
+                .names = "norm_{.col}")
+         )
   
-  # scale and centre
-  mutate(across(.cols = where(is.numeric), .fns = scale)) #%>% 
-  #mutate(across(.cols = where(is.numeric), .fns = normalise))
-  
-foe_green_space_focus %>% 
-  skimr::skim()
+# plot scaled data
+p <- ggplot(data = foe_green_space_scaled)
+p + geom_histogram(mapping = aes(x = scale_log_green_space_area_per_capita))
+p + geom_histogram(mapping = aes(x = scale_sqrt_pcnt_pop_with_go_space_access))
 
-p <- ggplot(data = foe_green_space_focus)
-
-p + geom_histogram(mapping = aes(x = log_green_space_area_per_capita))
-
-p + geom_histogram(mapping = aes(x = sqrt_pcnt_pop_with_go_space_access))
+# plot normalised data
+p <- ggplot(data = foe_green_space_norm)
+p + geom_histogram(mapping = aes(x = norm_log_green_space_area_per_capita))
+p + geom_histogram(mapping = aes(x = norm_sqrt_pcnt_pop_with_go_space_access))
 ```
+## Merge gardens and green space datasets
 
 ```{r}
-z_iris <- iris %>% 
-  psycho::standardize() 
+gs_gar_scaled <- foe_green_space_scaled %>% 
+  left_join(gardens_scaled)
 
-summary(z_iris)
+gs_gar_norm <- foe_green_space_norm %>% 
+  left_join(gardens_norm)
+```
+## Clustering with normalised data
+
+```{r}
+# select variables for use in clustering
+data_points <- gs_gar_norm %>% 
+  select(norm_log_green_space_area_per_capita, 
+         norm_sqrt_pcnt_pop_with_go_space_access,
+         norm_log_ave_gar_size,
+         norm_to_power_six_perc_add_with_gar
+         )
+```
+
+Run kmeans algorithm once to understand the function and its output
+```{r}
+# define number of clusters
+k <- 3
+
+# run k-means algorithm
+kmeans_out <- kmeans(data_points, centers = k)
+
+# display k-means algorithm output
+augment(kmeans_out, gs_gar_norm)
+tidy(kmeans_out)
+glance(kmeans_out)
+
+```
+Run exploratory clustering - looking at the choice of k
+
+```{r}
+
 ```
 
 
-```{r}
+
+```{r eval=FALSE}
 
 # could create a reflect function
 %>% 
