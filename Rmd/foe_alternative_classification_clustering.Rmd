@@ -22,23 +22,62 @@ normalise <- function(x){
 
 ## Ideas
 
-* Utility function for garden area per capita
-* Incorporating flats / no gardens
-* Rescaling variables 
-  - range (0-1)
-  - variance?
-  - weighting?
-  
-**Preparing data for clustering: **
+-   Utility function for garden area per capita
 
-* Read in data from excel
-* clean data
-* explore data (if needed)
-* transform data for clustering
-  
-  
+-   Incorporating flats / no gardens
+
+-   Rescaling variables
+
+    -   range (0-1)
+    -   variance?
+    -   weighting?
+
+**Preparing data for clustering:**
+
+-   Read in data from excel
+-   clean data
+-   explore data (if needed)
+-   transform data for clustering
+
+[Preprocessing](https://medium.com/@evgen.ryzhkov/5-stages-of-data-preprocessing-for-k-means-clustering-b755426f9932):
+
+-   Numerical variables only
+
+-   Manage noise and outliers
+
+-   Reduce skew (i.e. aim for symmetric distributions)
+
+-   Place variables on the same scale
+
+-   Check for collinearity
+
+-   Minimize number of variables
+
+[Check assumptions](https://www.r-bloggers.com/2017/08/exploring-assumptions-of-k-means-clustering-using-r/):
+
+-   spherical clusters
+
+-   approximately equal size clusters
+
+-   approximately equal variance
+
 ## Prepare garden data for clustering
+
 The ONS (Office for National Statistics) provides [data on access to private green space](https://www.ons.gov.uk/economy/environmentalaccounts/datasets/accesstogardensandpublicgreenspaceingreatbritain) (i.e. access to gardens) for each Local Authority District in Great Britain. Here I am using the most recent April 2020 edition of the data. I quickly, manually edited the ONS excel file to make it easier use the `read_excel` function for data import. Given it is unlikely that the ONS data will be updated during the course of this analysis, it was preferable to go for the quicker manual process than investing time in a re-producible programmatic approach.
+
+**Notes on trying to understand how ONS figures are calculated:**
+
+-   I was trying to work out how the ONS calculate `ave_gar_size` and `perc_add_with_gar`.
+
+-   It is unclear how the average garden size (`ave_gar_size`) is calculated. It (`ave_gar_size_calc`) is not calculated as the total garden area divided by the number of addresses with a garden (`total_gar_area` / `add_with_gar_count`). On average the ratio of `ave_gar_size:ave_gar_size_calc`is greater than 1, indicating the ONS figure tends to be greater than my calculated figure. For now I will assume this is to do with differences in how flats and houses are treated in the calculation.
+
+-   The percentage of addresses with a garden (`perc_add_with_gar)`is simply calculated as the number of addresses with a garden divided by the total numbers of addresses (i.e. `add_with_gar_count` / `add_count)`
+
+**Notes on outliers:**
+
+-   `ave_gar_size`: one clear outlier removed at around 120,000 m^2^
+
+-   `perc_add_with_gar`: no obvious outliers as all values are between 0 and 1.
 
 ```{r import_gardens}
 
@@ -71,7 +110,20 @@ gardens_focus %>%
 # focus down further on variables of interest
 gardens_focus <- gardens_focus %>% 
   select(msoa_code, msoa_name, perc_add_with_gar, ave_gar_size)
-  
+
+# review variable distriubtions
+p <- ggplot(data = gardens_focus)
+p + geom_histogram(mapping = aes(x = perc_add_with_gar))
+p + geom_histogram(mapping = aes(x = ave_gar_size))
+p + geom_boxplot(mapping = aes(x = ave_gar_size)) +
+  annotate(geom = "text", x = 10500, y = 0.1, 
+           label = "Outlier with potential\nto impact on clustering\nperformance")
+
+# remove outliers
+gardens_focus <- gardens_focus %>% 
+  filter(ave_gar_size < 3000)
+
+
 # transform variables of interest to more normal distributions
 gardens_trans <- gardens_focus %>% 
   mutate(log_ave_gar_size = log(ave_gar_size),
@@ -112,6 +164,12 @@ p + geom_histogram(mapping = aes(x = norm_log_ave_gar_size))
 
 ## Prepare public green space data for clustering
 
+**Notes on outliers:**
+
+-   `green_space_area_per_capita`: no obvious outliers on boxplot with log10 scale.
+
+-   `pcnt_pop_with_go_space_access`: no obvious outliers as all values are between 0 and 1.
+
 ```{r}
 # read in data from excel
 foe_green_space <- read_foe_data()
@@ -119,6 +177,14 @@ foe_green_space <- read_foe_data()
 # focus on variables of interest
 foe_green_space_focus <- foe_green_space %>% 
   select(msoa_code, msoa_name, green_space_area_per_capita, pcnt_pop_with_go_space_access)
+
+# review variable distriubtions
+p <-  ggplot(data = foe_green_space_focus)
+p + geom_histogram(mapping = aes(x = green_space_area_per_capita))
+p + geom_boxplot(mapping = aes(x = green_space_area_per_capita)) + scale_x_log10()
+p + geom_histogram(mapping = aes(x = pcnt_pop_with_go_space_access))
+
+# no obvious outliers to remove
   
 # transform variables of interest to more normal distributions
 foe_green_space_trans <- foe_green_space_focus %>% 
@@ -152,6 +218,7 @@ p <- ggplot(data = foe_green_space_norm)
 p + geom_histogram(mapping = aes(x = norm_log_green_space_area_per_capita))
 p + geom_histogram(mapping = aes(x = norm_sqrt_pcnt_pop_with_go_space_access))
 ```
+
 ## Merge gardens and green space datasets
 
 ```{r}
@@ -159,27 +226,88 @@ gs_gar_scaled <- foe_green_space_scaled %>%
   left_join(gardens_scaled)
 
 gs_gar_norm <- foe_green_space_norm %>% 
-  left_join(gardens_norm)
+  left_join(gardens_norm)  
+  
 ```
-## Clustering with normalised data
+
+## Pre-process the green space - gardens datasets
 
 ```{r}
-# select variables for use in clustering
-data_points <- gs_gar_norm %>% 
-  select(norm_log_green_space_area_per_capita, 
+# select (normalised) variables for use in clustering
+data_points_norm <- gs_gar_norm %>% 
+  select(msoa_code, msoa_name,
+         norm_log_green_space_area_per_capita, 
          norm_sqrt_pcnt_pop_with_go_space_access,
          norm_log_ave_gar_size,
          norm_to_power_six_perc_add_with_gar
+         ) %>%   
+  
+  # remove any nas
+  filter(across(.cols = where(is.numeric),
+                .fns = ~ !is.na(.x)))
+
+# select (scaled) variables for use in clustering
+data_points_scaled <- gs_gar_scaled %>% 
+  select(scale_log_green_space_area_per_capita, 
+         scale_sqrt_pcnt_pop_with_go_space_access,
+         scale_log_ave_gar_size,
+         scale_to_power_six_perc_add_with_gar
          )
 ```
 
+**Check for collinearity between variables**
+
+-   Only conducted for normalized data, would expect the same correlations for scaled data.
+
+-   Highest correlation coefficient (0.55): `norm_log_ave_gar_size` - `norm_log_green_space_area_per_capita`
+
+-   Second highest correlation coefficient (0.42) `norm_log_ave_gar_size` - `norm_sqrt_pcnt_pop_with_go_space_access`
+
+-   Neither of the above would be considered strong correlations (by the benchmark of Pearson's correlation coefficient being 0.7 or greater.
+
+-   Arguably the relationship between `norm_log_ave_gar_size` - `norm_log_green_space_area_per_capita` could be considered a moderate correlation, as the correlation coefficient is greater than 0.5. I think this degree of correlation could indicate that both variables are related to (population) density. In other words, denser MSOAs have both smaller gardens and less public green space per capita. For now, I'll retain both variables and reconsider if either could or should be omitted from clustering based on the initial results.
+
+**Minimize number of variables**
+
+Given the lack of strong correlations between the four variables, the four variables selected is the minimum required to incorporate information on both:
+
+-   The amount and accessibility of public green space;
+
+-   And, the amount and accessibility of private green space;
+
+```{r fig.height=5}
+library(corrr)
+
+# identify correlations between the variables
+d <- correlate(data_points_norm %>% select(where(is.numeric)))
+d
+d %>% 
+  rplot() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+# plot pairs of variables where correlations have been indentified
+p <- ggplot(data = data_points_norm)
+
+p + geom_point(mapping = aes(x = norm_log_green_space_area_per_capita, norm_log_ave_gar_size))
+
+p + geom_point(mapping = aes(x = norm_sqrt_pcnt_pop_with_go_space_access, norm_log_ave_gar_size))
+```
+
+## Clustering with normalised data
+
+```{r}
+
+```
+
 Run kmeans algorithm once to understand the function and its output
+
 ```{r}
 # define number of clusters
 k <- 3
 
 # run k-means algorithm
-kmeans_out <- kmeans(data_points, centers = k)
+kmeans_out <- kmeans(data_points_norm 
+                        %>% select(where(is.numeric)),
+                     centers = k)
 
 # display k-means algorithm output
 augment(kmeans_out, gs_gar_norm)
@@ -187,13 +315,12 @@ tidy(kmeans_out)
 glance(kmeans_out)
 
 ```
+
 Run exploratory clustering - looking at the choice of k
 
 ```{r}
 
 ```
-
-
 
 ```{r eval=FALSE}
 
@@ -206,4 +333,3 @@ p <-  ggplot(data = gardens,
 
 p + geom_histogram() + scale_x_log10()
 ```
-
