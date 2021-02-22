@@ -252,7 +252,11 @@ data_points_scaled <- gs_gar_scaled %>%
          scale_sqrt_pcnt_pop_with_go_space_access,
          scale_log_ave_gar_size,
          scale_to_power_six_perc_add_with_gar
-         )
+         ) %>%   
+  
+  # remove any nas
+  filter(across(.cols = where(is.numeric),
+                .fns = ~ !is.na(.x)))
 ```
 
 **Check for collinearity between variables**
@@ -301,22 +305,145 @@ p + geom_point(mapping = aes(x = norm_sqrt_pcnt_pop_with_go_space_access, norm_l
 Run kmeans algorithm once to understand the function and its output
 
 ```{r}
+# final preparation of data for k means algorithm 
+# remove non-numeric (key) columns
+kmeans_in <- data_points_norm %>% 
+  select(-starts_with("msoa"))
+
 # define number of clusters
 k <- 3
 
 # run k-means algorithm
-kmeans_out <- kmeans(data_points_norm 
-                        %>% select(where(is.numeric)),
+kmeans_out <- kmeans(kmeans_in,
                      centers = k)
 
 # display k-means algorithm output
-augment(kmeans_out, gs_gar_norm)
+augment(kmeans_out, data_points_norm)
 tidy(kmeans_out)
 glance(kmeans_out)
 
 ```
 
 Run exploratory clustering - looking at the choice of k
+
+```{r}
+
+run_n_kmeans <- function(n = 9, km_in){
+
+  kmeans_outputs <- tibble(k = 1:n) %>% 
+    mutate(kclust = map(k, ~ kmeans(km_in, centers = .x)),
+           tidied = map(kclust, tidy),
+           glanced = map(kclust, glance),
+           augmented = map(kclust, augment, data = km_in)
+           )
+  
+  return(kmeans_outputs)
+}
+
+
+get_n_kmeans_outputs <- function(kmeans_outputs_df, column_name){
+  kmeans_outputs_df %>% 
+    unnest(cols = c({{column_name}}))
+}
+
+plot_kmeans_clusters <- function(assignments, clusters, x, y) {
+  ggplot(data = assignments,
+             mapping = aes(x = !!sym(x),
+                           y = !!sym(y))
+             ) +
+    
+  geom_point(mapping = aes(colour = .cluster), alpha = 0.8) +
+    
+  geom_point(data = clusters,
+             size = 5,
+             shape = "x") +
+  scale_colour_viridis_d() +
+    
+  facet_wrap(~ k)
+}
+
+plot_kmeans_summary_stat <- function(clusterings_df, summary_stat){
+  ggplot(data = clusterings_df,
+       mapping = aes(x = k, y = {{summary_stat}})) +
+  geom_line() +
+  geom_point()
+}
+
+
+```
+
+```{r}
+run_kmeans_exploratory_workflow <- function(km_in, k_max, public_gs_vars, garden_vars){
+  
+  kmeans_outputs <- run_n_kmeans(n = k_max, km_in = km_in)
+  
+  clusters <- get_n_kmeans_outputs(kmeans_outputs, tidied)
+  assignments <- get_n_kmeans_outputs(kmeans_outputs, augmented)
+  clusterings <- get_n_kmeans_outputs(kmeans_outputs, glanced)
+  
+  
+  plot(plot_kmeans_clusters(assignments, clusters,  
+                           public_gs_vars[[1]],
+                           public_gs_vars[[2]]
+                           )
+      )
+  
+  plot(plot_kmeans_clusters(assignments, clusters,  
+                            garden_vars[[1]],
+                            garden_vars[[2]]
+                            )
+       )
+  
+  plot(plot_kmeans_summary_stat(clusterings, tot.withinss)
+       )
+}
+
+# final preparation of data for k means algorithm 
+# remove non-numeric (key) columns
+kmeans_in_norm <- data_points_norm %>% 
+  select(-starts_with("msoa"))
+
+kmeans_in_scale <- data_points_scaled %>% 
+  select(-starts_with("msoa"))
+
+public_gs_vars <- c("norm_log_green_space_area_per_capita",
+                    "norm_sqrt_pcnt_pop_with_go_space_access")
+
+garden_vars <- c("norm_log_ave_gar_size",
+                 "norm_to_power_six_perc_add_with_gar")
+
+run_kmeans_exploratory_workflow(kmeans_in_norm, public_gs_vars, garden_vars, k_max = 5)
+
+
+public_gs_vars_scale <- c("scale_log_green_space_area_per_capita",
+                    "scale_sqrt_pcnt_pop_with_go_space_access")
+
+garden_vars_scale <- c("scale_log_ave_gar_size",
+                 "scale_to_power_six_perc_add_with_gar")
+
+run_kmeans_exploratory_workflow(kmeans_in_scale, public_gs_vars_scale, garden_vars_scale, k_max = 5)
+```
+
+```{r}
+
+
+
+
+```
+
+```{r}
+p2_public_gs <- p1_public_gs +
+  geom_point(data = clusters,
+             size = 5,
+             shape = "x")
+p2_public_gs
+
+p2_gardens <- p1_gardens +
+  geom_point(data = clusters,
+             size = 5,
+             shape = "x")
+p2_gardens
+```
 
 ```{r}
 
@@ -332,4 +459,22 @@ p <-  ggplot(data = gardens,
              mapping = aes(x = reflect_perc_add_with_gar))
 
 p + geom_histogram() + scale_x_log10()
+```
+
+```{r}
+# clusters <- kmeans_outputs %>% 
+#   unnest(cols = c(tidied)) %>% 
+#   select(-kclust, -augmented, -glanced)
+# clusters
+# 
+# assignments <- kmeans_outputs %>% 
+#   unnest(cols = c(augmented)) %>% 
+#   select(-kclust, -tidied, -glanced)
+# assignments
+# 
+# clusterings <- kmeans_outputs %>% 
+#   unnest(cols = c(glanced)) %>% 
+#   select(-kclust, -tidied, -augmented)
+# 
+# clusterings
 ```
