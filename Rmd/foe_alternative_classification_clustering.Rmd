@@ -8,6 +8,8 @@ library(tidyverse)
 library(readxl)
 library(janitor) # for clean names
 library(tidymodels)
+library(ggpubr) # for adding regression line equations to scatter plots
+library(skimr)
 ```
 
 ```{r project_functions}
@@ -299,6 +301,46 @@ p + geom_point(mapping = aes(x = norm_log_green_space_area_per_capita, norm_log_
 
 p + geom_point(mapping = aes(x = norm_sqrt_pcnt_pop_with_go_space_access, norm_log_ave_gar_size))
 ```
+Looking at the relationship between `norm_log_ave_gar_size`, `norm_log_green_space_area_per_capita` and `population_density` in more detail. From r-squared values from the linear regression models plotted below, we can observe that:
+
+* Approximately two thirds of the variability in `norm_log_ave_gar_size` can be explained by the natural logarithm of `population_density`;
+* Approximately half in `norm_log_green_space_area_per_capita` can be explained by the natural logarithm of `population_density`;
+
+```{r}
+# add population density data to the two variables of interest
+pop_den_gs <- foe_green_space %>% 
+  select(msoa_code, msoa_name, population_density) %>% 
+  right_join(data_points_norm) %>% 
+  select(population_density, norm_log_ave_gar_size, norm_log_green_space_area_per_capita) %>% 
+  mutate(log_population_density = log(population_density)) %>% 
+  pivot_longer(cols = starts_with("norm"), names_to = "variable", values_to = "value")
+
+
+# Plot the two variables vs population density
+p <-  ggplot(data = pop_den_gs,
+             mapping = aes(x = log_population_density,
+                           y = value,
+                           colour = variable)
+)
+
+p +  geom_point() +
+  
+  stat_smooth(method = "lm", colour = "grey50") +
+  
+  stat_regline_equation(colour = "grey50",
+                        label.x = -7.5) +
+  
+  stat_cor(mapping = aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~")), # add R2 value to plot
+           colour = "grey50", 
+           label.x = -8.0,
+           label.y = 0.9) +
+  
+  facet_wrap(~variable) +
+  
+  theme(legend.position = "none")
+```
+
+
 
 ## Clustering with normalised data
 
@@ -392,7 +434,7 @@ run_kmeans_exploratory_workflow <- function(km_in, data, k_max, public_gs_vars, 
   
   # process kmeans outputs
   clusters <- get_n_kmeans_outputs(kmeans_outputs, tidied) %>% 
-    select(-kclust, -augmented, -glanced)
+    select(-kclust, -augmented, -glanced) # remove columns of large-ish tibbles
   assignments <- get_n_kmeans_outputs(kmeans_outputs, augmented) %>% 
     select(-kclust, -tidied, -glanced)
   clusterings <- get_n_kmeans_outputs(kmeans_outputs, glanced) %>% 
@@ -444,21 +486,32 @@ garden_vars_scale <- c("scale_log_ave_gar_size",
 # run workflows for normalised and scaled data
 exploratory_workflow_norm_out <- run_kmeans_exploratory_workflow(kmeans_in_norm, data_points_norm, public_gs_vars_norm, garden_vars_norm, k_max = 9)
 
-# exploratory_workflow_scale_out <- run_kmeans_exploratory_workflow(kmeans_in_scale, public_gs_vars_scale, garden_vars_scale, k_max = 9)
+exploratory_workflow_scale_out <- run_kmeans_exploratory_workflow(kmeans_in_scale, data_points_scaled, public_gs_vars_scale, garden_vars_scale, k_max = 9)
 ```
 
 **k = 5:**
 
-* cluster 1: low 
+```{r}
+# get workflow outputs (normed data)
+norm_assignments <- exploratory_workflow_norm_out@assignments
+
+# add in unprocessed garden and public green space data
+gs_gar_norm_clusters <- norm_assignments %>% 
+  left_join(gs_gar_norm)
+
+
+# get workflow outputs (scaled data)
+scale_assignments <- exploratory_workflow_scale_out@assignments
+
+# add in unprocessed garden and public green space data
+gs_gar_scale_clusters <- scale_assignments %>% 
+  left_join(gs_gar_scaled)
+```
+ 
 
 
 ```{r}
 library(ggridges)
-
-norm_assignments <- exploratory_workflow_norm_out@assignments
-
-gs_gar_norm_clusters <- norm_assignments %>% 
-  left_join(gs_gar_norm)
 
 cluster_ridge_plots <- function(df, var_of_int, k_of_int = c(4,5)){
 
@@ -484,24 +537,40 @@ cluster_ridge_plots(gs_gar_norm_clusters, log_green_space_area_per_capita)
 ```
 
 ```{r}
-plotting_df_clusters <- gs_gar_norm_clusters %>% 
-  filter(k == 5) %>% 
-  select(msoa_code, msoa_name,
-         perc_add_with_gar, ave_gar_size,
-         pcnt_pop_with_go_space_access, log_green_space_area_per_capita,
-         .cluster) %>% 
-  pivot_longer(cols = perc_add_with_gar:log_green_space_area_per_capita,
-               names_to = "green_space_variable",
-               values_to = "values")
 
-ggplot(data = plotting_df_clusters,
-       mapping = aes(x = values,
-                     y = .cluster,
-                     fill = .cluster)
-       ) +
-  geom_density_ridges() +
+plot_cluster_ridges <- function(k_int, clusters_df){
+  plotting_df_clusters <- clusters_df %>% 
+    filter(k == k_int) %>% 
+    select(msoa_code, msoa_name,
+           perc_add_with_gar, log_ave_gar_size,
+           pcnt_pop_with_go_space_access, log_green_space_area_per_capita,
+           .cluster) %>% 
+    pivot_longer(cols = perc_add_with_gar:log_green_space_area_per_capita,
+                 names_to = "green_space_variable",
+                 values_to = "values")
+  
+  ggplot(data = plotting_df_clusters,
+         mapping = aes(x = values,
+                       y = .cluster,
+                       fill = .cluster)
+  ) +
+    geom_density_ridges() +
     scale_fill_viridis_d() +
-  facet_wrap(~green_space_variable, scales = "free_x")
+    facet_wrap(~green_space_variable, scales = "free_x")
+
+}
+
+plot_cluster_ridges(k_int = 6, clusters_df = gs_gar_norm_clusters)
+plot_cluster_ridges(k_int = 6, clusters_df = gs_gar_scale_clusters)
+
+
+
+# gs_gar_scale_clusters %>% 
+#   select(msoa_code, msoa_name,
+#          scale_to_power_six_perc_add_with_gar, scale_log_ave_gar_size,
+#          scale_sqrt_pcnt_pop_with_go_space_access, scale_log_green_space_area_per_capita) %>% 
+#   skim()
+
 ```
 
 
