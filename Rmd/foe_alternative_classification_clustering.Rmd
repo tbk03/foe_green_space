@@ -20,7 +20,6 @@ source("../R_code/green_space_functions.R")
 theme_set(theme_light())
 ```
 
-
 ```{r notebook_functions}
 normalise <- function(x){
   (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE)) 
@@ -301,10 +300,11 @@ p + geom_point(mapping = aes(x = norm_log_green_space_area_per_capita, norm_log_
 
 p + geom_point(mapping = aes(x = norm_sqrt_pcnt_pop_with_go_space_access, norm_log_ave_gar_size))
 ```
+
 Looking at the relationship between `norm_log_ave_gar_size`, `norm_log_green_space_area_per_capita` and `population_density` in more detail. From r-squared values from the linear regression models plotted below, we can observe that:
 
-* Approximately two thirds of the variability in `norm_log_ave_gar_size` can be explained by the natural logarithm of `population_density`;
-* Approximately half in `norm_log_green_space_area_per_capita` can be explained by the natural logarithm of `population_density`;
+-   Approximately two thirds of the variability in `norm_log_ave_gar_size` can be explained by the natural logarithm of `population_density`;
+-   Approximately half in `norm_log_green_space_area_per_capita` can be explained by the natural logarithm of `population_density`;
 
 ```{r}
 # add population density data to the two variables of interest
@@ -339,8 +339,6 @@ p +  geom_point() +
   
   theme(legend.position = "none")
 ```
-
-
 
 ## Clustering with normalised data
 
@@ -507,8 +505,6 @@ scale_assignments <- exploratory_workflow_scale_out@assignments
 gs_gar_scale_clusters <- scale_assignments %>% 
   left_join(gs_gar_scaled)
 ```
- 
-
 
 ```{r}
 library(ggridges)
@@ -561,7 +557,7 @@ plot_cluster_ridges <- function(k_int, clusters_df){
 }
 
 plot_cluster_ridges(k_int = 6, clusters_df = gs_gar_norm_clusters)
-plot_cluster_ridges(k_int = 6, clusters_df = gs_gar_scale_clusters)
+plot_cluster_ridges(k_int = 5, clusters_df = gs_gar_scale_clusters)
 
 
 
@@ -573,6 +569,95 @@ plot_cluster_ridges(k_int = 6, clusters_df = gs_gar_scale_clusters)
 
 ```
 
+## Interpreting clusters (scaled)
+
+I think this makes more sense as normalisation brings points closer to the mean, but there data points distant from the mean (e.g. MSOA's with low percentages of people with gardens / green space access) that should be receive weighting in the context of the focus on green space deprivation.
+
+From the plot of total sum of squares within clusters above, I think it is worth considering k = 4, 5 and 6 in more detail.
+
+### k = 4
+
+```{r}
+calc_cluster_means <- function(df, k_of_int){
+  df %>%
+    select(k, msoa_code, msoa_name,
+           ave_gar_size, green_space_area_per_capita,
+           pcnt_pop_with_go_space_access, perc_add_with_gar,
+           .cluster) %>% 
+    filter(k == k_of_int) %>% 
+    group_by(.cluster) %>% 
+    summarise(n = n(),
+              across(where(is.numeric), ~mean(.x))) %>% 
+    arrange(desc(.cluster))
+}
+
+k_of_int = 4
+
+plot_cluster_ridges(k_int = k_of_int, clusters_df = gs_gar_scale_clusters)
+calc_cluster_means(gs_gar_scale_clusters, k_of_int)
+```
+
++---+---------+-------------------+----------------+-------------------------------+-----------------------------+
+| k | Cluster | perc_add_with_gar | ave_gar_size   | pcnt_pop_with_go_space_access | green_space_area_per_capita |
++===+=========+===================+================+===============================+=============================+
+| 4 | 1       | High (rel)        | Medium (rel)   | High (rel)                    | medium(rel)                 |
+|   |         |                   |                |                               |                             |
+|   |         | High (abs)        | Good (abs)     | Med-high (abs)                | adequate(abs)               |
++---+---------+-------------------+----------------+-------------------------------+-----------------------------+
+| 4 | 2       | Low (rel)         | low-med(rel)   | low-high(rel)                 | low-med(rel)                |
+|   |         |                   |                |                               |                             |
+|   |         | Med-high(abs)     | poor-adeq(abs) | poor-good(abs)                | poor-ade(abs)               |
++---+---------+-------------------+----------------+-------------------------------+-----------------------------+
+| 4 | 3       | High (rel)        | High(rel)      | low-med(rel)                  | med-good(rel)               |
+|   |         |                   |                |                               |                             |
+|   |         | High (abs)        | Good(abs)      | poor-adeq(abs)                | good-exce(abs)              |
++---+---------+-------------------+----------------+-------------------------------+-----------------------------+
+| 4 | 4       | High (rel)        | Medium (rel)   | low-med(rel)                  | low-med(rel)                |
+|   |         |                   |                |                               |                             |
+|   |         | High (abs)        | Good (abs)     | poor-adeq(abs)                | poor-adeq(abs)              |
++---+---------+-------------------+----------------+-------------------------------+-----------------------------+
+
+### k = 5
+
+```{r}
+k_of_int = 5
+
+plot_cluster_ridges(k_int = k_of_int, clusters_df = gs_gar_scale_clusters)
+calc_cluster_means(gs_gar_scale_clusters, k_of_int)
+```
+
++---+---------+---------------------+-----------------------------+-------------------------------+-------------------+
+| k | Cluster | ave_gar_size        | green_space_area_per_capita | pcnt_pop_with_go_space_access | perc_add_with_gar |
++===+=========+=====================+=============================+===============================+===================+
+| 5 | 5       | **medium**          | **medium**                  | **med-high**                  | **med-high**      |
+|   |         |                     |                             |                               |                   |
+|   |         | adeq-good           | adeq                        | *poor-adeq*                   | *poor-good*       |
++---+---------+---------------------+-----------------------------+-------------------------------+-------------------+
+| 5 | 4       | **medium**          | **medium**                  | **med-high**                  | **high**          |
+|   |         |                     |                             |                               |                   |
+|   |         | adeq-good           | adeq                        | *poor-adeq*                   | *good*            |
++---+---------+---------------------+-----------------------------+-------------------------------+-------------------+
+| 5 | 3       | **\*\#low**         | **\*\#low**                 | **low-med**                   | **med-high**      |
+|   |         |                     |                             |                               |                   |
+|   |         | *poor-adeq***\#\*** | *poor-adeq***\#\***         | *poor*                        | *poor-good*       |
++---+---------+---------------------+-----------------------------+-------------------------------+-------------------+
+| 5 | 2       | **v high**          | **v high**                  | **low-med**                   | **high**          |
+|   |         |                     |                             |                               |                   |
+|   |         | *excellent*         | *excellent*                 | *poor*                        | *good*            |
++---+---------+---------------------+-----------------------------+-------------------------------+-------------------+
+| 5 | 1       | **medium**          | **\*\#low**                 | **low-med**                   | **high**          |
+|   |         |                     |                             |                               |                   |
+|   |         | adeq-good           | *poor-adeq***\#\***         | *poor*                        | *good*            |
++---+---------+---------------------+-----------------------------+-------------------------------+-------------------+
+
+### k = 6
+
+```{r}
+k_of_int = 6
+
+plot_cluster_ridges(k_int = k_of_int, clusters_df = gs_gar_scale_clusters)
+calc_cluster_means(gs_gar_scale_clusters, k_of_int)
+```
 
 ```{r}
 p2_public_gs <- p1_public_gs +
