@@ -26,6 +26,30 @@ normalise <- function(x){
 }
 ```
 
+## Introduction
+
+### Objectives
+
+### The anticipated audience of the notebook
+
+### Writing style
+
+### The status of the notebook
+
+### The datasets used
+
+All data files are in the 'Data' folder (i.e. /foe_green_space/Data).
+
+| File Name | Variable name in this notebook | Notes | More details |
+|-----------|--------------------------------|-------|--------------|
+|           |                                |       |              |
+|           |                                |       |              |
+|           |                                |       |              |
+
+### A summary of findings / conclusions
+
+### Other notes
+
 ## Ideas
 
 -   Utility function for garden area per capita

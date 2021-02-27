@@ -1,5 +1,5 @@
 ---
-title: "Exploring the Friends of the Earth Green Space Deprivation Ratings"
+title: "Friends of the Earth Green Space Data: Exploratory Data Analysis 2"
 output: 
   html_document:
     df_print: paged
@@ -27,8 +27,6 @@ library(skimr)
 source("../R_code/green_space_functions.R")
 ```
 
-
-
 ```{r set_document_defaults}
 # set the default ggplot theme for the whole notebook
 theme_set(theme_minimal())
@@ -40,6 +38,30 @@ colour_scale <- colour_palette(seq(0, 1, length.out = 5))
 # set the background colour for the table
 background_colour <- "#EDEDED"
 ```
+
+## Introduction
+
+### Objectives
+
+### The anticipated audience of the notebook
+
+### Writing style
+
+### The status of the notebook
+
+### The datasets used
+
+All data files are in the 'Data' folder (i.e. /foe_green_space/Data).
+
+| File Name | Variable name in this notebook | Notes | More details |
+|-----------|--------------------------------|-------|--------------|
+|           |                                |       |              |
+|           |                                |       |              |
+|           |                                |       |              |
+
+### A summary of findings / conclusions
+
+### Other notes
 
 ## Framing
 
@@ -785,8 +807,6 @@ green_space_boxplot <- function(x, y, gs_score, shading_boundaries){
 
 #### Garden area per capita
 
-
-
 ```{r garden_space_plotting_func}
 
 # define functions to be used across the plots in the garden space per capita plots
@@ -804,7 +824,6 @@ add_garden_plot_labels <- function(removed, cutoff, maximum){
 
 ```
 
-
 ```{r garden_space_plot_setup}
 
 # define the boundaries for background shading 
@@ -815,14 +834,13 @@ garden_shading_boundaries <- tibble(score = as_factor(c(1, 2, 3, 4)),
 
 ```
 
-The first summary variable I looked at in detail is average garden area per capita. The histogram below shows the numbers of neighborhoods with different average garden area per capita. This gives a sense of how much garden space (per capita) English neighborhoods have. The frequency distribution is heavily right skewed. With most neighborhoods have average garden area per capita of less than 200 m2, and then a long tail consisting of relatively few neighborhoods up to 800m2. Note that the x axis of the plot does not display a number of neighborhoods in the dataset (see the caption for details). 
+The first summary variable I looked at in detail is average garden area per capita. The histogram below shows the numbers of neighborhoods with different average garden area per capita. This gives a sense of how much garden space (per capita) English neighborhoods have. The frequency distribution is heavily right skewed. With most neighborhoods have average garden area per capita of less than 200 m2, and then a long tail consisting of relatively few neighborhoods up to 800m2. Note that the x axis of the plot does not display a number of neighborhoods in the dataset (see the caption for details).
 
-Consider the relative distribution of garden space across neighborhoods in England is relatively straight forward. It is more challenging to understand what the implications of this distribution are. Develop such understanding would require comparison with some benchmark values. My initial searches suggest that there may be limited research on how much garden space per capita is a "good" amount in terms of creating benefits whether for health and well-being (e.g relaxation and stress reduction) or the environment (e.g. through improved drainage and reduced flood risk). 
+Consider the relative distribution of garden space across neighborhoods in England is relatively straight forward. It is more challenging to understand what the implications of this distribution are. Develop such understanding would require comparison with some benchmark values. My initial searches suggest that there may be limited research on how much garden space per capita is a "good" amount in terms of creating benefits whether for health and well-being (e.g relaxation and stress reduction) or the environment (e.g. through improved drainage and reduced flood risk).
 
-In my admittedly fairly cursory searches to date I did find garden space guidelines within the [Essex Design Guide](https://www.essexdesignguide.co.uk/design-details/architectural-details/garden-size/); an evolving set of guidelines that has shaped development in the English county of Essex for over 45 years. The Essex Design guide recommends minimum garden sizes of 100m^2^ per household. A figure which is said to allow for a wide range household activities and the sunlight needed to grow plants. For smaller houses where space is at a premium the guide recommends 50m^2^ per household. Sticking with the higher of the two figures as a benchmark, and making a crude assumption that on average is occupied by 2 people, 50m^2^ garden space per capita might be considered a minimum standard. Here the conversion between per household figures and per capita figures is needed because the FoE dataset provides only the later. 
+In my admittedly fairly cursory searches to date I did find garden space guidelines within the [Essex Design Guide](https://www.essexdesignguide.co.uk/design-details/architectural-details/garden-size/); an evolving set of guidelines that has shaped development in the English county of Essex for over 45 years. The Essex Design guide recommends minimum garden sizes of 100m^2^ per household. A figure which is said to allow for a wide range household activities and the sunlight needed to grow plants. For smaller houses where space is at a premium the guide recommends 50m^2^ per household. Sticking with the higher of the two figures as a benchmark, and making a crude assumption that on average is occupied by 2 people, 50m^2^ garden space per capita might be considered a minimum standard. Here the conversion between per household figures and per capita figures is needed because the FoE dataset provides only the later.
 
 The FoE green space scores shown on the background of the histogram correspond to the quartiles of the `garden_area_per_capita` variable. With a score 1 indicating neighborhoods in the first quartile (i.e. bottom 25% for garden space per capita), and a score of 4 indicating neighborhoods in the fourth quartile (i.e. top 25%). So, from the histogram below we can see that more than 75% of English neighborhoods have more than 50m^2^ garden space per capita. Which in turn suggests that the most of the English population may not be affected by severe green space deprivation due to lack of garden space.
-
 
 ```{r garden_histogram}
 # define cut off for outliers and count the number omitted from the plot
@@ -851,15 +869,16 @@ p + green_space_histogram(x = garden_area_per_capita,
   
   scale_x_continuous(breaks = c(seq(from = 0, to = 800, by = 50)))
 ```
-I was also interested in finding a way to visualise how equally or unequally garden space is distributed across English neighborhoods. The plot below is a a first effort at this. Although I think it might need further work as it is tricky to interpret. 
+
+I was also interested in finding a way to visualise how equally or unequally garden space is distributed across English neighborhoods. The plot below is a a first effort at this. Although I think it might need further work as it is tricky to interpret.
 
 Anyway, as it stands the plot shows the cumulative proportion of garden area in England as accounted for by neighborhoods with average garden area per captia. Note the average garden variable is plotted on a log scale. The background colours and vertical lines show the quartiles for the average garden space variable. While the horizontal dotted lines corresponds to quartiles for the cumulative proportion of garden area in England.
 
 So, for example reading off the plot where the curve meets the horizontal/vertical lines we can see that:
 
-* the bottom 50% of neighborhoods (by average garden area per capita) account for approximately 25% of the garden space in England;
-* the top 25% of neighborhoods (by average garden area per capita) account for approximately just over  50% of the garden space in England;
-* the bottom 25% of neighborhoods (by average garden area per capita) account for approximately 6-7% of the garden space in England
+-   the bottom 50% of neighborhoods (by average garden area per capita) account for approximately 25% of the garden space in England;
+-   the top 25% of neighborhoods (by average garden area per capita) account for approximately just over 50% of the garden space in England;
+-   the bottom 25% of neighborhoods (by average garden area per capita) account for approximately 6-7% of the garden space in England
 
 ```{r, warning=FALSE}
 
@@ -896,28 +915,26 @@ p + geom_line(mapping = aes(x = garden_area_per_capita,
 
 ```
 
-
 Reviewing the garden area plots above also lead me to consider following points (although I didn't have the opportunity explore them in detail).
 
-* The figures within the FoE dataset identify the average (presumably mean, although I need to check this) amount of garden area per capita for neighborhoods in England. With the data to hand it is not possible to understand the distribution of green space within neighborhoods. Hence, it is possible the use of average garden area per capita data at the neighborhood is obscuring the skewed distributions of garden area within neighborhoods. This issue seems more likely to be occurring where neighborhoods have different types of housing stock within them, which in turn are likely to have different amounts of garden space. For example, a neighborhood could have a housing stock split between flats (with little or no gardens) and houses with large gardens. It might be possible to explore this issue a further using the ONS green space data (included within the FoE dataset) as this does distinguish between flats and houses within each neighborhood.
-* There is also the question of how the value (in it's broadest sense encompassing the types of benefits discussed above) of additional garden space. So, it seems reasonable to assume that if an individual moves from having 0 and 25m^2^ of garden space the well-being benefits would be significant. However, it is less clear that if an individual moving from say having 200 to 225 m^2^ of garden space that there would be significant benefits.
-* There is an implicit assumption in this analysis that garden space is green space. However, some garden are likely to be predominately gray (e.g paved) and some are likely to be not well managed (e.g. overgrown). So, it might be interesting in future work to consider how the quality of garden space might be modeled, and how this might inform additional analysis of the garden area data. 
+-   The figures within the FoE dataset identify the average (presumably mean, although I need to check this) amount of garden area per capita for neighborhoods in England. With the data to hand it is not possible to understand the distribution of green space within neighborhoods. Hence, it is possible the use of average garden area per capita data at the neighborhood is obscuring the skewed distributions of garden area within neighborhoods. This issue seems more likely to be occurring where neighborhoods have different types of housing stock within them, which in turn are likely to have different amounts of garden space. For example, a neighborhood could have a housing stock split between flats (with little or no gardens) and houses with large gardens. It might be possible to explore this issue a further using the ONS green space data (included within the FoE dataset) as this does distinguish between flats and houses within each neighborhood.
+-   There is also the question of how the value (in it's broadest sense encompassing the types of benefits discussed above) of additional garden space. So, it seems reasonable to assume that if an individual moves from having 0 and 25m^2^ of garden space the well-being benefits would be significant. However, it is less clear that if an individual moving from say having 200 to 225 m^2^ of garden space that there would be significant benefits.
+-   There is an implicit assumption in this analysis that garden space is green space. However, some garden are likely to be predominately gray (e.g paved) and some are likely to be not well managed (e.g. overgrown). So, it might be interesting in future work to consider how the quality of garden space might be modeled, and how this might inform additional analysis of the garden area data.
 
 ##### Understanding garden area per capita for groups of neighborhoods
 
 I was interested to understand more about how garden space per capita for groups of neighborhoods with (perhaps) similar characteristics. In particular, for:
 
-* Neighborhoods with different FoE green space deprivation ratings;
-* and, urban and rural neighborhoods.
+-   Neighborhoods with different FoE green space deprivation ratings;
+-   and, urban and rural neighborhoods.
 
 So, I started by looking at garden area per capita broken by the FoE green space deprivation ratings. This is shown in the two boxplots below, as a way to deal with the highly right skewed nature of the data. The second plot essentially zooms in on part of the first to show more detail. I chose this two plot approach rather than a logarithmic scale because the later would have distorted the shape of the boxplots making them more difficult to interpret.
 
 The plots comprise of three layers:
 
-* The coloured background showing FoE garden space score boundaries (i.e. the quartiles in statistical terminology);
-* Grey points representing where each neighborhood lies on the axis. Given the number of neighborhoods in the dataset a vertical jitter was used to reduce overplotting. This a presentational device only, so aside from showing the green space deprivation rating of a neighborhood the vertical position of point conveys no other information.
-* The boxplots themselves which follow standard statistical conventions.
-
+-   The coloured background showing FoE garden space score boundaries (i.e. the quartiles in statistical terminology);
+-   Grey points representing where each neighborhood lies on the axis. Given the number of neighborhoods in the dataset a vertical jitter was used to reduce overplotting. This a presentational device only, so aside from showing the green space deprivation rating of a neighborhood the vertical position of point conveys no other information.
+-   The boxplots themselves which follow standard statistical conventions.
 
 ```{r garden_summary_stats_by_rating, include = FALSE}
 garden_summary_stats_by_rating <- green_space_urban_rural %>% 
@@ -929,13 +946,12 @@ garden_summary_stats_by_rating
 
 ```
 
-
 Reviewing the two plots I noted:
 
-* For neighborhoods with ratings D and E similar distributions of garden space per capita can be observed. The median for D rated neighborhoods (50 m^2^) is slightly higher than the median for E rated neighborhoods ((33.5 m^2^). The similarities are accentuated by the cutoff applied in the FoE classification method, where to be rated D or E a given neighborhood must have a garden area per capita value lower than the overall average (i.e. a neighborhood must be in the bottom 50% of neighborhoods for garden space per capita).
-* We see the counter intuitive situation whereby it appears that neighborhoods rated B tend to have less garden space per capita than those rated C. For example, the median value for neighborhoods with a B rating is 91.2 m^2^, while for those rated C it is 93.9 m^2^. Additionally, there are no C rated neighborhoods in Q1 of the overall garden area per capita distribution. Whereas, there are B rated neighborhoods in Q1 of the overall distribution. So, there are neighborhoods rated B (i.e. the second least green space deprived category) which are within the bottom 25% of neighborhoods for garden space.
-* Thinking back to the rule of thumb derived from the Essex Design Guide that 50 m^2^ garden area per capita might be considered a minimum. The median garden area per capita is above this figure for all rating groups except rating group A. 
- 
+-   For neighborhoods with ratings D and E similar distributions of garden space per capita can be observed. The median for D rated neighborhoods (50 m^2^) is slightly higher than the median for E rated neighborhoods ((33.5 m^2^). The similarities are accentuated by the cutoff applied in the FoE classification method, where to be rated D or E a given neighborhood must have a garden area per capita value lower than the overall average (i.e. a neighborhood must be in the bottom 50% of neighborhoods for garden space per capita).
+-   We see the counter intuitive situation whereby it appears that neighborhoods rated B tend to have less garden space per capita than those rated C. For example, the median value for neighborhoods with a B rating is 91.2 m^2^, while for those rated C it is 93.9 m^2^. Additionally, there are no C rated neighborhoods in Q1 of the overall garden area per capita distribution. Whereas, there are B rated neighborhoods in Q1 of the overall distribution. So, there are neighborhoods rated B (i.e. the second least green space deprived category) which are within the bottom 25% of neighborhoods for garden space.
+-   Thinking back to the rule of thumb derived from the Essex Design Guide that 50 m^2^ garden area per capita might be considered a minimum. The median garden area per capita is above this figure for all rating groups except rating group A.
+
 ```{r garden_box_plot_rating}
 garden_area_boxplot_rating <- function(cutoff = 800){
   
@@ -966,10 +982,10 @@ garden_area_boxplot_rating(250)
 
 I was also interested in understanding if and how `garden_area_per_capita` varies in different ways for urban and rural neighborhoods. So, I produced an additional boxplots below this time distinguishing between neighborhoods on the y axis using the ONS urban-rural classifications. Again it was helpful to first produce an overall plot, and then produce a second plot zooming in on the x axis. Reviewing the two plots I noted that:
 
-* Unsurprisingly neighborhoods classified as "Villages and isolated homes" tend to have more `garden_area_per_capita` than neighborhoods classified as "Town and Fringe". In turn, those classified as "Town and Fringe" tend to have more `garden_area_per_capita` than those classified as urban.
-* Almost every one of the neighborhoods classified as "Villages and isolated homes" is in the upper quartile of all English neighborhoods for `garden_area_per_capita`. 
-* Almost none of the neighborhoods classified as "Villages and isolated homes" are in the bottom quartile of all English neighborhoods for `garden_area_per_capita`. 
-* This highlights that the most severe form of garden space deprivation is almost exclusively an urban issue. That said there `garden_area_per_capita` for urban neighborhoods varies over a relatively wide range. With the boxplots showing that median `garden_area_per_capita` for urban neighborhoods is approximately 90 m^2^ per capita. While considerable numbers of urban neighborhoods are within the two quartiles of of all English neighborhoods for `garden_area_per_capita`.
+-   Unsurprisingly neighborhoods classified as "Villages and isolated homes" tend to have more `garden_area_per_capita` than neighborhoods classified as "Town and Fringe". In turn, those classified as "Town and Fringe" tend to have more `garden_area_per_capita` than those classified as urban.
+-   Almost every one of the neighborhoods classified as "Villages and isolated homes" is in the upper quartile of all English neighborhoods for `garden_area_per_capita`.
+-   Almost none of the neighborhoods classified as "Villages and isolated homes" are in the bottom quartile of all English neighborhoods for `garden_area_per_capita`.
+-   This highlights that the most severe form of garden space deprivation is almost exclusively an urban issue. That said there `garden_area_per_capita` for urban neighborhoods varies over a relatively wide range. With the boxplots showing that median `garden_area_per_capita` for urban neighborhoods is approximately 90 m^2^ per capita. While considerable numbers of urban neighborhoods are within the two quartiles of of all English neighborhoods for `garden_area_per_capita`.
 
 ```{r garden_box_plot_urb_rur}
 garden_area_boxplot_urb_rur <- function(cutoff = 800){
@@ -1001,25 +1017,22 @@ garden_area_boxplot_urb_rur(400)
 
 ```
 
-
-
 #### Public green space area per capita
 
 I then turned to look at the second summary variable - public `green_space_area_per_capita` and produced a similar set of plots to those produced above for `garden_area_per_capita`. It is worth noting on this set of plots the background coloring show how FoE have grouped neighborhoods according to public `green_space_area_per_capita`. The scores are defined as follows:
 
-1. public `green_space_area_per_capita` $\lt$ 9m^2^;
-2. 9m^2^ $\le$ public `green_space_area_per_capita` $\lt$ 33m^2^;
-3. 33m^2^ $\le$ public `green_space_area_per_capita` $\lt$ 50m^2^;
-4. 50m^2^ $\le$ public `green_space_area_per_capita`.
+1.  public `green_space_area_per_capita` $\lt$ 9m^2^;
+2.  9m^2^ $\le$ public `green_space_area_per_capita` $\lt$ 33m^2^;
+3.  33m^2^ $\le$ public `green_space_area_per_capita` $\lt$ 50m^2^;
+4.  50m^2^ $\le$ public `green_space_area_per_capita`.
 
-It is important note that these score represent normative assessments of what very small (1), small (2), large (3) and very large (4) amounts of public `green_space_area_per_capita` look like. In particular, to is worth being clear that this is a different approach to that used by FoE to score `garden_space_area_per_capita` (where the scores were derived from the data itself using quartiles).  
+It is important note that these score represent normative assessments of what very small (1), small (2), large (3) and very large (4) amounts of public `green_space_area_per_capita` look like. In particular, to is worth being clear that this is a different approach to that used by FoE to score `garden_space_area_per_capita` (where the scores were derived from the data itself using quartiles).
 
-The issues with interpreting the public `green_space_area_per_capita` data are relatively similar to those discussed above for `garden_area_per_capita`. Issues which include: 
+The issues with interpreting the public `green_space_area_per_capita` data are relatively similar to those discussed above for `garden_area_per_capita`. Issues which include:
 
-* It being relatively easy to understand the relative distribution of public `green_space_area_per_capita` across English neighborhoods. While it is much more challenging to understand the implication of this, and how much public green space is a 'good' or useful amount. 
-* My initial and fairly quick searches for public green space area benchmarks did not identify much in the way readily useful frameworks or information. Rather it appears the most widely quoted and citied benchmark (a World Health Organization recommendation of the minimum amounts of green space per capita 9m^2^) [cannot be attributed to a specific source document](https://www.researchgate.net/post/I-see-many-studies-citing-WHO-for-their-international-minimum-standard-for-green-space-9m2-per-capita-But-where-is-the-actual-study).
-* The heavily skewed nature of the distribution of the variable and the need to adapt plots to ensure they are easy to interpret.
-
+-   It being relatively easy to understand the relative distribution of public `green_space_area_per_capita` across English neighborhoods. While it is much more challenging to understand the implication of this, and how much public green space is a 'good' or useful amount.
+-   My initial and fairly quick searches for public green space area benchmarks did not identify much in the way readily useful frameworks or information. Rather it appears the most widely quoted and citied benchmark (a World Health Organization recommendation of the minimum amounts of green space per capita 9m^2^) [cannot be attributed to a specific source document](https://www.researchgate.net/post/I-see-many-studies-citing-WHO-for-their-international-minimum-standard-for-green-space-9m2-per-capita-But-where-is-the-actual-study).
+-   The heavily skewed nature of the distribution of the variable and the need to adapt plots to ensure they are easy to interpret.
 
 ```{r public_space_plotting_func}
 
@@ -1046,13 +1059,10 @@ public_space_shading_boundaries <- tibble(score = as_factor(c(1, 2, 3, 4)),
                                           )
 ```
 
-
-
 First considering the distribution of public `green_space_area_per_capita` across all English neighborhoods I plotted the histogram below. Reviewing the plot I noted:
 
-* The similarities to the distribution of `garden_area_per_capita` histogram (see above).
-* The distribution is heavily right skewed with a long tail representing relatively small numbers of numbers of neighborhoods with very large amounts of public `green_space_area_per_capita`. 
-
+-   The similarities to the distribution of `garden_area_per_capita` histogram (see above).
+-   The distribution is heavily right skewed with a long tail representing relatively small numbers of numbers of neighborhoods with very large amounts of public `green_space_area_per_capita`.
 
 ```{r public_space_histogram}
 
@@ -1081,9 +1091,9 @@ p + green_space_histogram(x = green_space_area_per_capita,
 
 Quickly checking the summary statistics (see below) highlights the following points:
 
-* The median (19.17 m^2^ of public `green_space_area_per_capita`) is a more reliable measure of center than the mean (244.72 m^2^). As the mean is influenced byt he long right tail of the distribution.
-* The neighborhood at the 75% percentile has 48.03 m^2^ of public `green_space_area_per_capita`.
-* Given the skewed nature of the data the inter quartile range is likely to be a more reliable measure of the spread than the standard deviation. In this case the inter quartile range is approximately 40 m^2^, comapred to a standard deviation of approximately 2350 m^2^.
+-   The median (19.17 m^2^ of public `green_space_area_per_capita`) is a more reliable measure of center than the mean (244.72 m^2^). As the mean is influenced byt he long right tail of the distribution.
+-   The neighborhood at the 75% percentile has 48.03 m^2^ of public `green_space_area_per_capita`.
+-   Given the skewed nature of the data the inter quartile range is likely to be a more reliable measure of the spread than the standard deviation. In this case the inter quartile range is approximately 40 m^2^, comapred to a standard deviation of approximately 2350 m^2^.
 
 ```{r}
 green_space_urban_rural %>% 
@@ -1099,8 +1109,8 @@ Following a similar approach to the previous section (which focused on `garden_a
 
 The two boxplots below show the grouping by the FoE green space deprivation rating. The second plot is simply a cropped version of the first, helping to make the more densely populated sections of the distribution easier to interpret. Reviewing these plots, I noted:
 
-* The distribution of neighborhoods within each rating group is intuitively understandable. With the median value for each sub-group rising as from E to A. So, as one would expect neighborhoods in group E tend to have less public `green_space_area_per_capita` than those in group D (and so on).
-* The boxplots for groups D and C however look fairly similar, and within rating B half of neighborhoods have less than approximately 25 m^2^ `green_space_area_per_capita`. These are interesting results as ratings D and E are identified as those as in the most urgent need of action to address green space deprivation. Yet neighborhoods with small amounts of `green_space_area_per_capita` have also been included in lower rating groups (B and C).
+-   The distribution of neighborhoods within each rating group is intuitively understandable. With the median value for each sub-group rising as from E to A. So, as one would expect neighborhoods in group E tend to have less public `green_space_area_per_capita` than those in group D (and so on).
+-   The boxplots for groups D and C however look fairly similar, and within rating B half of neighborhoods have less than approximately 25 m^2^ `green_space_area_per_capita`. These are interesting results as ratings D and E are identified as those as in the most urgent need of action to address green space deprivation. Yet neighborhoods with small amounts of `green_space_area_per_capita` have also been included in lower rating groups (B and C).
 
 ```{r public_space_boxplot_rating}
 public_gs_area_boxplot_rating <-  function(cutoff = 750){
@@ -1132,15 +1142,21 @@ public_gs_area_boxplot_rating(cutoff = 100)
 
 
 ```
+
 The two boxplots below show the grouping by urban-rural classification. Reviewing these plots, I noted:
 
-* There could be two distinct sub-groups within the neighborhoods classified as Town and Fringe - (1) those more urban in nature; and (2) those more rural in nature. This hunch is based on the dense cluster of neighborhoods around 10-30 m^2^ and more diffuse spread of nieghborhoods for higher values of public `green_space_area_per_capita`.
-* For neighborhoods classified as urban, the values of public `green_space_area_per_capita` range widely from 0 to more than 1200 m^2". So, while a typical urban area (as shown by the median line of the boxplot at approximately 20m^2^) has relatively little public `green_space_area_per_capita`. There are considerable numbers of urban neighborhoods with relatively large amounts of public `green_space_area_per_capita`.
-* Similarly, for neighborhoods classified as Villages and isolated homes the values of public `green_space_area_per_capita` range widely from 0 to more than 1200 m^2". With a relatively dense cluster of neighborhoods around 30 m^2^.
-* Considering the median value for each sub-group they appear in the order one would expect. With the median value for 'Village and isolated homes' being greater than 'Town and Fringe', which in turn is greater than 'Urban'.
-* Overall this suggests several sub-groups of neighboorhoods which might be interesting to explore further:
-  - Urban neighborhoods with relatively large amounts of public `green_space_area_per_capita`;
-  - 'Town and Fringe', and 'Village and Isolated Home', neighborhoods with relatively small amounts of public `green_space_area_per_capita`;
+-   There could be two distinct sub-groups within the neighborhoods classified as Town and Fringe - (1) those more urban in nature; and (2) those more rural in nature. This hunch is based on the dense cluster of neighborhoods around 10-30 m^2^ and more diffuse spread of nieghborhoods for higher values of public `green_space_area_per_capita`.
+
+-   For neighborhoods classified as urban, the values of public `green_space_area_per_capita` range widely from 0 to more than 1200 m\^2". So, while a typical urban area (as shown by the median line of the boxplot at approximately 20m^2^) has relatively little public `green_space_area_per_capita`. There are considerable numbers of urban neighborhoods with relatively large amounts of public `green_space_area_per_capita`.
+
+-   Similarly, for neighborhoods classified as Villages and isolated homes the values of public `green_space_area_per_capita` range widely from 0 to more than 1200 m\^2". With a relatively dense cluster of neighborhoods around 30 m^2^.
+
+-   Considering the median value for each sub-group they appear in the order one would expect. With the median value for 'Village and isolated homes' being greater than 'Town and Fringe', which in turn is greater than 'Urban'.
+
+-   Overall this suggests several sub-groups of neighboorhoods which might be interesting to explore further:
+
+    -   Urban neighborhoods with relatively large amounts of public `green_space_area_per_capita`;
+    -   'Town and Fringe', and 'Village and Isolated Home', neighborhoods with relatively small amounts of public `green_space_area_per_capita`;
 
 ```{r public_space_boxplot_urban_rural}
 
@@ -1175,15 +1191,13 @@ public_gs_area_boxplot_urb_rur(cutoff = 200)
 
 #### The proportion of population within the neighborhood within 5 minutes walks of public green space
 
-Finally, I turn to the third summary variable that informs the FoE Green Space Deprivation Ratings: `pcnt_pop_with_go_space_access`. Referred to here in the text of this notebook as percentage of population with good green space access. More specifically, this variable estimates the percentage of the population (of a given neighborhood) who live within a five minute walk of 2 hectares of green space. This is a standard defined by Natural England for green space accessibility (although I couldn't find the underpinning report cited by FoE, it looks like it has been archived by the government). Footnote 129 in the FoE England's Green Space gap report provides further details on their approach to calculating `pcnt_pop_with_go_space_access` as follows: 
+Finally, I turn to the third summary variable that informs the FoE Green Space Deprivation Ratings: `pcnt_pop_with_go_space_access`. Referred to here in the text of this notebook as percentage of population with good green space access. More specifically, this variable estimates the percentage of the population (of a given neighborhood) who live within a five minute walk of 2 hectares of green space. This is a standard defined by Natural England for green space accessibility (although I couldn't find the underpinning report cited by FoE, it looks like it has been archived by the government). Footnote 129 in the FoE England's Green Space gap report provides further details on their approach to calculating `pcnt_pop_with_go_space_access` as follows:
 
-"We calculate this using 300 meters in a straight-line as being a 5-minutes’ walk. 300 meters is less than the 400 meters that most people would walk in 5 minutes but takes into account that more urban journeys to a public green space are unlikely to be in a straight line."
+"We calculate this using 300 meters in a straight-line as being a 5-minutes' walk. 300 meters is less than the 400 meters that most people would walk in 5 minutes but takes into account that more urban journeys to a public green space are unlikely to be in a straight line."
 
-The format of the plots in this section is similar to the those in the sections above. 
+The format of the plots in this section is similar to the those in the sections above.
 
-* I begin by reviewing the distribution of percentage of population with good green space access. 
-*I then reviewing in turn how the distribution of percentage of population with good green space access breaks down by FoE Green Space Deprivation rating, and urban-rural classification.
-
+-   I begin by reviewing the distribution of percentage of population with good green space access. \*I then reviewing in turn how the distribution of percentage of population with good green space access breaks down by FoE Green Space Deprivation rating, and urban-rural classification.
 
 ```{r gs_access_plotting_func}
 
@@ -1221,17 +1235,15 @@ median_pop_with_good_access <- good_access %>%
   pull()
 ```
 
+The histogram below shows how many English neighborhoods have certain percentages of their populations with good access to public green space. Reviewing the plot I noted:
 
-The histogram below shows how many English neighborhoods have certain percentages of their populations with good access to public green space. Reviewing the plot I noted: 
-
-* The background coloring layers of the plot are not too informative in this case as the FoE Public Green Space Access score boundaries shown correspond to fixed, uniformly distributed values on the x axis (0, 25, 50 and 75% of the population with good access to public green space).
-* Between approximately 0 and 40 percent of the population with good access to public green space the numbers of neighborhoods is fairly constant.
-* Between approximately 40 and 100 percent of the population with good access to public green space the numbers of neighborhoods declines in a linear fashion. 
-* Only `r prop_neigh_with_50_plus * 100`% of neighborhoods have more than 50% of their population with good access to public green space.
-* Or conversely, `r (1 - prop_neigh_with_50_plus) * 100`% of neighborhoods have less than 50% of their population with good access to public green space.
-* The median neighborhood has `r median_pop_with_good_access` percent of its population with good public green space access.
-* Overall, the above suggests, that there is a widespread green space deprivation problem in the form of limited access to public green space within easy (i.e. 5 min) walking distance.
-
+-   The background coloring layers of the plot are not too informative in this case as the FoE Public Green Space Access score boundaries shown correspond to fixed, uniformly distributed values on the x axis (0, 25, 50 and 75% of the population with good access to public green space).
+-   Between approximately 0 and 40 percent of the population with good access to public green space the numbers of neighborhoods is fairly constant.
+-   Between approximately 40 and 100 percent of the population with good access to public green space the numbers of neighborhoods declines in a linear fashion.
+-   Only `r prop_neigh_with_50_plus * 100`% of neighborhoods have more than 50% of their population with good access to public green space.
+-   Or conversely, `r (1 - prop_neigh_with_50_plus) * 100`% of neighborhoods have less than 50% of their population with good access to public green space.
+-   The median neighborhood has `r median_pop_with_good_access` percent of its population with good public green space access.
+-   Overall, the above suggests, that there is a widespread green space deprivation problem in the form of limited access to public green space within easy (i.e. 5 min) walking distance.
 
 ```{r}
 
@@ -1249,8 +1261,8 @@ p + green_space_histogram(x = pcnt_pop_with_go_space_access,
   
   
 ```
-I wonder if there some factors at play which are making the problem look worse than it is ... for example, low density rural neighborhoods where public green space is relatively distant from small populations.
 
+I wonder if there some factors at play which are making the problem look worse than it is ... for example, low density rural neighborhoods where public green space is relatively distant from small populations.
 
 ```{r}
 p + green_space_boxplot(x = pcnt_pop_with_go_space_access, y = green_space_deprivation_rating, 
@@ -1296,7 +1308,6 @@ p + green_space_boxplot(x = pcnt_pop_with_go_space_access, y = morphology_name,
 -   
 
 ## The distribution of green space deprivation ratings across England
-
 
 ```{r, eval=FALSE}
 # As a starting point - select the three indices (GSDI_...) that make up the rating (and the data that these indices are calculated from)
@@ -1986,7 +1997,6 @@ p + geom_segment(mapping = aes(x = green_space_deprivation_rating,
 -   Use above and below median income to facet plots (as in covid-19) ...
 -   Is there an equivalent approach for ethnicity? Where might the boundary be drawn (the national average proportion of BAME population)?
 -   Green space affluent vs. green space deprived?
-
 
 ```{r eval = FALSE}
 rating_component_plots <- function(){
