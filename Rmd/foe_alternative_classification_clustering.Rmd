@@ -248,6 +248,148 @@ p + geom_histogram(mapping = aes(x = norm_log_green_space_area_per_capita))
 p + geom_histogram(mapping = aes(x = norm_sqrt_pcnt_pop_with_go_space_access))
 ```
 
+
+## PCA / UMAP
+
+
+```{r}
+run_n_kmeans <- function(n = 9, km_in, data){
+
+  kmeans_outputs <- tibble(k = 1:n) %>% 
+    mutate(kclust = map(k, ~ kmeans(km_in, centers = .x)),
+           tidied = map(kclust, tidy),
+           glanced = map(kclust, glance),
+           augmented = map(kclust, augment, data = data)
+           )
+  
+  return(kmeans_outputs)
+}
+
+
+get_n_kmeans_outputs <- function(kmeans_outputs_df, column_name){
+  kmeans_outputs_df %>% 
+    unnest(cols = c({{column_name}}))
+}
+
+plot_kmeans_clusters <- function(assignments, clusters, x, y) {
+  ggplot(data = assignments,
+             mapping = aes(x = !!sym(x),
+                           y = !!sym(y))
+             ) +
+    
+  geom_point(mapping = aes(colour = .cluster), alpha = 0.8) +
+    
+  geom_point(data = clusters,
+             size = 5,
+             shape = "x") +
+  scale_colour_viridis_d() +
+    
+  facet_wrap(~ k)
+}
+
+plot_kmeans_summary_stat <- function(clusterings_df, summary_stat){
+  ggplot(data = clusterings_df,
+       mapping = aes(x = k, y = {{summary_stat}})) +
+  geom_line() +
+  geom_point()
+}
+```
+
+
+```{r}
+library(tidymodels)
+library(embed)
+
+gs_gar <- gardens_focus %>% 
+  left_join(foe_green_space_focus)
+
+# run umap to reduce dataset to two dimensions
+umap_recipe <- recipe( ~ ., data = gs_gar) %>%
+  
+  update_role(starts_with("msoa"), new_role = 'id') %>% 
+  
+  step_naomit(all_predictors()) %>% 
+  
+  step_log(green_space_area_per_capita, ave_gar_size,
+           offset = 1) %>% 
+  
+  step_normalize(all_predictors()) %>% 
+  
+  step_umap(all_predictors())
+
+umap_prep <- prep(umap_recipe)
+umap_prep
+ 
+umap_out <- juice(umap_prep) 
+
+umap_out%>% 
+  ggplot(aes(umap_1, umap_2)) +
+  geom_point()
+
+# cluster based on umap variables
+k_means_in <- umap_out %>% 
+  select(-msoa_code, - msoa_name)
+
+k_means_out <- kmeans(k_means_in, 4)
+tidy(k_means_out)
+glance(k_means_out)
+
+augment(k_means_out, umap_out) %>% 
+  ggplot(aes(umap_1, umap_2, colour = .cluster)) +
+  geom_point() +
+  scale_color_viridis_d()
+
+augment(k_means_out, umap_out) %>%
+  left_join(gs_gar) %>%
+  pivot_longer(cols = perc_add_with_gar:pcnt_pop_with_go_space_access,
+               names_to = 'variable', values_to = 'value') %>% 
+  ggplot(aes(umap_1, umap_2, colour = log(value))) +
+  geom_point(alpha = 0.3) +
+  scale_color_viridis_c() +
+  facet_wrap(~variable)
+
+gs_gar_clusters <- augment(k_means_out, umap_out) %>%
+  left_join(gs_gar)
+
+gs_gar_clusters %>% 
+  ggplot(aes(umap_1, umap_2, colour = perc_add_with_gar)) +
+  geom_point(alpha = 0.3) +
+  scale_color_viridis_c()
+
+plot_umap_cluster <- function(df, var_name){
+  df %>% 
+  ggplot(aes(umap_1, umap_2, colour = {{var_name}})) +
+  geom_point(alpha = 0.3) +
+  scale_colour_viridis_c(option = "magma")
+}
+
+plot_umap_cluster_log <- function(df, var_name){
+  df %>% 
+  ggplot(aes(umap_1, umap_2, colour = log({{var_name}}))) +
+  geom_point(alpha = 0.3) +
+  scale_colour_viridis_c(option = "magma")
+}
+
+plot_umap_cluster(gs_gar_clusters, perc_add_with_gar)
+plot_umap_cluster(gs_gar_clusters, pcnt_pop_with_go_space_access)
+plot_umap_cluster_log(gs_gar_clusters, ave_gar_size)
+plot_umap_cluster_log(gs_gar_clusters, green_space_area_per_capita)
+
+# tune k parameter
+k_means_outputs <- run_n_kmeans(n = 10, km_in = k_means_in, data = umap_out)
+
+clusters <- get_n_kmeans_outputs(k_means_outputs, tidied) %>% 
+  select(-kclust, -augmented, -glanced) # remove columns of large-ish tibbles
+assignments <- get_n_kmeans_outputs(k_means_outputs, augmented) %>% 
+  select(-kclust, -tidied, -glanced)
+clusterings <- get_n_kmeans_outputs(k_means_outputs, glanced) %>% 
+  select(-kclust, -tidied, -augmented)
+
+plot_kmeans_clusters(assignments, clusters, "umap_1", "umap_2")
+plot_kmeans_summary_stat(clusterings, tot.withinss)
+```
+
+
 ## Merge gardens and green space datasets
 
 ```{r}
