@@ -248,9 +248,7 @@ p + geom_histogram(mapping = aes(x = norm_log_green_space_area_per_capita))
 p + geom_histogram(mapping = aes(x = norm_sqrt_pcnt_pop_with_go_space_access))
 ```
 
-
 ## PCA / UMAP
-
 
 ```{r}
 run_n_kmeans <- function(n = 9, km_in, data){
@@ -295,7 +293,6 @@ plot_kmeans_summary_stat <- function(clusterings_df, summary_stat){
 }
 ```
 
-
 ```{r}
 library(tidymodels)
 library(embed)
@@ -325,6 +322,12 @@ umap_out <- juice(umap_prep)
 umap_out%>% 
   ggplot(aes(umap_1, umap_2)) +
   geom_point()
+
+umap_out %>% 
+  ggplot(aes(umap_1)) + geom_histogram()
+
+umap_out %>% 
+  ggplot(aes(umap_2)) + geom_histogram()
 
 # cluster based on umap variables
 k_means_in <- umap_out %>% 
@@ -389,6 +392,137 @@ plot_kmeans_clusters(assignments, clusters, "umap_1", "umap_2")
 plot_kmeans_summary_stat(clusterings, tot.withinss)
 ```
 
+Look at pca as an alternative
+
+See <https://cmdlinetips.com/2020/06/pca-with-tidymodels-in-r/>
+
+```{r}
+
+# specify a recipe for pca
+pca_recipe <- recipe( ~ ., data = gs_gar) %>%
+  
+  update_role(starts_with("msoa"), new_role = 'id') %>% 
+  
+  step_naomit(all_predictors()) %>% 
+  
+  step_log(green_space_area_per_capita, ave_gar_size,
+           offset = 1) %>% 
+  
+  step_normalize(all_predictors()) %>% 
+  
+  step_pca(all_predictors(), id = "pca")
+
+# prepare the recipe (inc. automatic estimate of step parameters)
+pca_prep <- prep(pca_recipe)
+pca_prep
+
+# Plot percentage of variance explained by each PC
+names(pca_prep)
+pca_results <- pca_prep$steps[[4]]$res
+s_dev <- pca_results$sd
+perc_variation <- s_dev ^ 2 / sum(s_dev ^ 2)
+
+var_df <- tibble(PC = paste("PC", 1:length(s_dev)),
+                 perc_var_explained = perc_variation)
+var_df %>% 
+  mutate(PC = fct_inorder(PC)) %>% 
+  ggplot(aes(PC, perc_var_explained)) +
+  geom_col()
+
+# Plot the loading of each variable on each PC
+tidy(pca_prep, id = "pca")
+
+tidied_pca <- tidy(pca_prep, number = 4)
+tidied_pca %>% 
+  mutate(component = fct_inorder(component)) %>% 
+  
+  ggplot(aes(value, terms, fill = terms)) +
+  geom_col(show.legend = FALSE) +
+  scale_y_discrete(labels = c("garden\nsize", "green\nspace\narea", "green\nspace\naccess", "garden\naccess")) +
+  facet_wrap(~component, nrow = 1) 
+```
+
+-   Can focus on PC1, PC2, and PC3: as PC4 explains less than 10% of variance in the dataset;
+
+-   Rough initial interpretations of the principal components:
+
+    -   PC1 - large average garden size and more public green space per capita (greenness);
+
+    -   PC2 - worse access to public green space (reversed below so high numbers show better access to green space);
+
+    -   PC3 - more households with gardens.
+
+```{r, fig.height = 5, fig.width = 10}
+
+# get the processed data out of the recipe
+pca_out <- bake(pca_prep, new_data = NULL) 
+pca_out
+
+# join pca output with original data for interpretation
+gs_gar_pca <- gs_gar %>% 
+  inner_join(pca_out) %>% 
+  select(-PC4) %>%
+  mutate(PC2 = -(PC2)) %>% 
+  pivot_longer(cols = PC1:PC3,
+               names_to = "pc_num",
+               values_to = "pc_values")
+
+# %>% 
+#   pivot_longer(cols = perc_add_with_gar:pcnt_pop_with_go_space_access,
+#                names_to = "green_space_var", 
+#                values_to = "green_space_values") 
+
+
+gs_gar_pca
+
+# new facet labels for pc_num variable
+facet_labels <- c("PC1" = str_c("PC1: Greener\nExplains ", 
+                                round(perc_variation[1]*100), 
+                                "% of variance"),
+                  "PC2" = str_c("PC2: Better public green space access\nExplains ",
+                                round(perc_variation[2]*100), 
+                                "% of variance"),
+                  "PC3" = str_c("PC3: More gardens\nExplains ",
+                                round(perc_variation[3]*100), 
+                                "% of variance")
+                  )
+
+p1 <- ggplot(gs_gar_pca, aes(ave_gar_size, green_space_area_per_capita,
+                             colour = pc_values)) +
+  geom_point(alpha = 0.2) +
+  scale_x_log10() + 
+  scale_y_log10(labels = comma_format(accuracy = 1)) +
+  scale_colour_viridis_c(option = "magma") +
+  labs(colour = "Value of\nprinciple\ncomponent",
+       x = "\nAverage size of garden (meters squared)\n(only for households with a garden)",
+       y = "\nPublic green space per capita (meters squared)\n") +
+  facet_wrap(~pc_num, nrow = 1,
+             labeller = labeller(pc_num = facet_labels))
+
+p2 <- ggplot(gs_gar_pca, aes(perc_add_with_gar, pcnt_pop_with_go_space_access,
+                             colour = pc_values)) +
+  geom_point(alpha = 0.2) +
+  scale_colour_viridis_c(option = "magma") +
+  scale_x_continuous(labels = percent_format()) +
+  scale_y_continuous(labels = percent_format(scale = 1)) +
+  labs(colour = "Value of\nprinciple\ncomponent",
+       x = "\nPercentage of addresses with a garden",
+       y = "\nPercentage of residents with\ngood access to public green space\n") +
+  facet_wrap(~pc_num, nrow = 1,
+             labeller = labeller(pc_num = facet_labels))
+
+p1
+p2
+
+
+# ggplot(gs_gar_pca, aes(PC1,PC2, colour = perc_add_with_gar)) +
+#   geom_point(alpha = 0.2) +
+#   scale_colour_viridis_c(option = "magma")
+# 
+# ggplot(gs_gar_pca, aes(PC1,PC3, colour = perc_add_with_gar)) +
+#   geom_point(alpha = 0.2) +
+#   scale_colour_viridis_c(option = "magma")
+```
 
 ## Merge gardens and green space datasets
 
