@@ -398,12 +398,24 @@ See <https://cmdlinetips.com/2020/06/pca-with-tidymodels-in-r/>
 
 ```{r}
 
+library(visdat)
+
+#  a quick check on missing data shows that 
+# garden data from ons includes English, Scottish and Welsh msoas
+# whereas FoE data on public green space included only English msoas
+
+vis_dat(gs_gar)
+vis_miss(gs_gar)
+
+pca_in <- gs_gar %>%
+  filter(str_detect(msoa_code, "^E")) # retain English MSOAs only
+
+vis_miss(pca_in)
+
 # specify a recipe for pca
-pca_recipe <- recipe( ~ ., data = gs_gar) %>%
+pca_recipe <- recipe( ~ ., data = pca_in) %>%
   
   update_role(starts_with("msoa"), new_role = 'id') %>% 
-  
-  step_naomit(all_predictors()) %>% 
   
   step_log(green_space_area_per_capita, ave_gar_size,
            offset = 1) %>% 
@@ -416,9 +428,11 @@ pca_recipe <- recipe( ~ ., data = gs_gar) %>%
 pca_prep <- prep(pca_recipe)
 pca_prep
 
+str(pca_prep$steps)
+
 # Plot percentage of variance explained by each PC
 names(pca_prep)
-pca_results <- pca_prep$steps[[4]]$res
+pca_results <- pca_prep$steps[[3]]$res
 s_dev <- pca_results$sd
 perc_variation <- s_dev ^ 2 / sum(s_dev ^ 2)
 
@@ -430,9 +444,7 @@ var_df %>%
   geom_col()
 
 # Plot the loading of each variable on each PC
-tidy(pca_prep, id = "pca")
-
-tidied_pca <- tidy(pca_prep, number = 4)
+tidied_pca <- tidy(pca_prep, number = 3)
 tidied_pca %>% 
   mutate(component = fct_inorder(component)) %>% 
   
@@ -522,6 +534,107 @@ p2
 # ggplot(gs_gar_pca, aes(PC1,PC3, colour = perc_add_with_gar)) +
 #   geom_point(alpha = 0.2) +
 #   scale_colour_viridis_c(option = "magma")
+```
+
+## Hierarchical clustering
+
+```{r}
+# check the distributions of the principal components
+pca_out %>% 
+  pivot_longer(cols = PC1:PC4, names_to = "pc_num", values_to = "value") %>% 
+  ggplot(aes(x = value, colour = pc_num)) +
+  geom_density()
+```
+
+```{r}
+library(fastcluster)
+
+hclust_in <- pca_out %>% 
+  select(-PC4, -msoa_code, -msoa_name)
+
+hclust_out <- hclust(dist(hclust_in))
+plot(hclust_out)
+
+hclust_plot_df <- pca_out %>% 
+  bind_cols(cluster = cutree(hclust_out, 6)) %>%
+  mutate(cluster = factor(cluster)) %>% 
+  inner_join(gs_gar)
+
+ggplot(hclust_plot_df, aes(x = ave_gar_size,
+                           y = green_space_area_per_capita,
+                           colour = cluster)
+       ) +
+  geom_point() +
+  scale_x_log10() +
+  scale_y_log10() +
+  scale_color_viridis_d()+
+  facet_wrap(~cluster)
+
+ggplot(hclust_plot_df, aes(x = perc_add_with_gar,
+                           y = pcnt_pop_with_go_space_access ,
+                           colour = cluster)
+       ) +
+  geom_point() +
+  scale_color_viridis_d()+
+  facet_wrap(~cluster)
+
+```
+
+```{r}
+library(gplots)
+
+heatmap.2(as.matrix(hclust_in))
+```
+
+```{r}
+library(pheatmap)
+
+pheatmap(hclust_in, cutree_rows = 6)
+```
+
+Try hierarchical clustering on raw data (rather than PCs)
+
+```{r}
+hclust_recipe <- recipe( ~ ., data = gs_gar) %>%
+  
+  update_role(starts_with("msoa"), new_role = 'id') %>% 
+  
+  step_naomit(all_predictors()) %>% 
+  
+  step_log(green_space_area_per_capita, ave_gar_size,
+           offset = 1) %>% 
+  
+  step_normalize(all_predictors())
+
+hclust_recipe_prep <- prep(hclust_recipe)
+data_preprocessed <- bake(hclust_recipe_prep, new_data = NULL)
+hclust_in <- data_preprocessed %>% 
+  select(-msoa_code, -msoa_name)
+
+hclust_out <- hclust(dist(hclust_in))
+plot(hclust_out)
+
+hclust_plot_df <- data_preprocessed %>% 
+  bind_cols(cluster = cutree(hclust_out, h = 7)) %>%
+  mutate(cluster = factor(cluster)) 
+
+ggplot(hclust_plot_df, aes(x = ave_gar_size,
+                           y = green_space_area_per_capita,
+                           colour = cluster)
+       ) +
+  geom_point() +
+  scale_color_viridis_d()+
+  facet_wrap(~cluster)
+
+ggplot(hclust_plot_df, aes(x = perc_add_with_gar,
+                           y = pcnt_pop_with_go_space_access ,
+                           colour = cluster)
+       ) +
+  geom_point() +
+  scale_color_viridis_d()+
+  facet_wrap(~cluster)
+
+
 ```
 
 ## Merge gardens and green space datasets
