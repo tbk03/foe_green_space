@@ -615,9 +615,10 @@ hclust_out <- hclust(dist(hclust_in))
 plot(hclust_out)
 
 hclust_plot_df <- data_preprocessed %>% 
-  bind_cols(cluster = cutree(hclust_out, h = 7)) %>%
+  bind_cols(cluster = cutree(hclust_out, h = 6)) %>%
   mutate(cluster = factor(cluster)) 
 
+# plot with processed data 
 ggplot(hclust_plot_df, aes(x = ave_gar_size,
                            y = green_space_area_per_capita,
                            colour = cluster)
@@ -634,6 +635,34 @@ ggplot(hclust_plot_df, aes(x = perc_add_with_gar,
   scale_color_viridis_d()+
   facet_wrap(~cluster)
 
+hclust_plot_df %>% 
+  count(cluster)
+
+# plot with raw data
+
+hclust_plot_df_2 <- hclust_plot_df %>% 
+  select(-perc_add_with_gar, -pcnt_pop_with_go_space_access, 
+         -ave_gar_size, -green_space_area_per_capita) %>% 
+  left_join(gs_gar)
+
+hclust_plot_df_2
+
+ggplot(hclust_plot_df_2, aes(x = ave_gar_size,
+                           y = green_space_area_per_capita,
+                           colour = cluster)
+       ) +
+  geom_point() +
+  scale_x_log10() + scale_y_log10() +
+  scale_color_viridis_d()+
+  facet_wrap(~cluster)
+
+ggplot(hclust_plot_df_2, aes(x = perc_add_with_gar,
+                           y = pcnt_pop_with_go_space_access ,
+                           colour = cluster)
+       ) +
+  geom_point() +
+  scale_color_viridis_d()+
+  facet_wrap(~cluster)
 
 ```
 
