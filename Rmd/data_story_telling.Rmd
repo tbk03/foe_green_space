@@ -1,0 +1,271 @@
+---
+title: "Data story telling example"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(waffle)
+library(hrbrthemes)
+#library(showtext)
+library(patchwork)
+library(ggtext)
+
+import_roboto_condensed()
+```
+
+## Introduction
+
+### Objectives
+
+### The anticipated audience of the notebook
+
+### Writing style
+
+### The status of the notebook
+
+### The datasets used
+
+All data files are in the 'Data' folder (i.e. /foe_green_space/Data).
+
+| File Name | Variable name in this notebook | Notes | More details |
+|-----------|--------------------------------|-------|--------------|
+|           |                                |       |              |
+|           |                                |       |              |
+|           |                                |       |              |
+
+### A summary of findings / conclusions
+
+### Other notes
+
+```{r project_functions}
+source("../R_code/green_space_functions.R")
+
+# font_add_google("Roboto", "robo")
+# font_add_google("Roboto Slab", "robo-slab")
+# showtext_auto()
+```
+
+```{r}
+# read in data from excel
+foe_green_space <- read_foe_data()
+
+# focus on variables of interest
+foe_green_space_focus <- foe_green_space %>% 
+  select(msoa_code, msoa_name, la_code, green_space_deprivation_rating)
+
+# FOE green space data doesn't include a variable for the region each MSOA/local authority lies within
+# So, import a look up table from the ONS, which maps between Local Authority Districts and Regions
+LAD_to_region <- read_csv("../Data/Local_Authority_District_to_Region__December_2019__Lookup_in_England.csv") %>% 
+  select(-FID, -LAD19NM)
+
+# merge green space and region dataframes
+green_space_regions <- foe_green_space_focus %>% 
+  left_join(LAD_to_region, by = c("la_code" = "LAD19CD")) %>% 
+  rename(region = RGN19NM,
+         region_code = RGN19CD)
+green_space_regions
+```
+
+```{r}
+
+add_region_short_names <- function(df){
+  
+  res <- df %>% 
+    mutate(region_short = case_when(
+      region == "East Midlands" ~ "E. Mids.",
+      region == "East of England" ~ "E. Eng.",
+      region == "North East" ~ "NE",
+      region == "North West" ~ "NW",
+      region == "South East" ~ "SE",
+      region == "South West" ~ "SW",
+      region == "West Midlands" ~ "W. Mids",
+      region == "Yorkshire and The Humber" ~ "Yorks.",
+      region == "London" ~ "Lon.",
+      TRUE ~ region),
+      region_short = str_to_upper(region_short)
+    )
+  
+  return(res)
+  
+}
+
+region_ratings_counts <- green_space_regions %>% 
+  filter(!is.na(region)) %>% 
+  group_by(region, green_space_deprivation_rating) %>% 
+  count() %>% 
+  add_region_short_names()
+
+
+# define the worst greenspace deprivation as rating D or E
+worst_gs_dep_counts <- green_space_regions %>% 
+  add_region_short_names() %>% 
+  mutate(D_or_E = green_space_deprivation_rating %in% c("D", "E")) %>% 
+  group_by(region_short) %>% 
+  summarise(num_D_or_E = sum(D_or_E),
+            prop_D_or_E = mean(D_or_E)) %>% 
+  na.omit() %>% 
+  arrange(desc(prop_D_or_E))
+
+# add in column ranking by regions by worst MSOA ratings
+region_ratings_counts <- region_ratings_counts %>% 
+  left_join(worst_gs_dep_counts) %>% 
+  mutate(region_short = factor(region_short, 
+                               levels = pull(worst_gs_dep_counts, 
+                                             region_short)),
+         green_space_deprivation_rating = factor(green_space_deprivation_rating,
+                                                 levels = c("E", "D", "C", 
+                                                            "B", "A"))) %>%
+  # needed to reorder ratings in each column
+  arrange(green_space_deprivation_rating)
+
+
+
+```
+
+```{r}
+library(viridisLite)
+library(ggtext)
+
+pal <- viridis(n = 5, alpha = 1, begin = 0, end = 1, direction = 1,option ="A")
+bg_colour <- "#dee3e3"
+alpha_hr <- 0.2
+
+waf <- region_ratings_counts %>% 
+  ggplot(aes(fill = green_space_deprivation_rating, values = n)) +
+  expand_limits(x=c(0,0), y=c(0,0)) +
+  coord_equal() +
+  theme_ipsum_rc(grid="") +
+  theme_enhance_waffle() +
+  labs(fill = NULL, colour = NULL)
+
+  
+  
+waf + geom_waffle(n_rows = 5,
+                  flip = TRUE,
+                  make_proportional = TRUE,
+                  colour = bg_colour) +
+  
+  scale_fill_manual(values = c(pal[1], pal[2], 
+                               alpha(pal[3], alpha_hr), 
+                               alpha(pal[4], alpha_hr), 
+                               alpha(pal[5], alpha_hr))) +
+  
+  # immitate a bar chart through facetting
+  facet_wrap(~region_short, 
+             nrow = 1,
+             strip.position = "bottom") +
+  
+  # format legend
+  labs(fill = "Green space\ndeprivation\nrating") +
+  guides(fill = guide_legend(reverse = TRUE)) +
+  
+  # theme settings for plot area from example code
+  theme(panel.spacing.x = unit(0, "npc"),
+        strip.text.x = element_text(hjust = 0.5)) +
+  
+  # custom theme settings for plot area
+  theme(plot.background = element_rect(fill = bg_colour, colour = NA),
+        text = element_text(family = "Roboto Condensed"),
+        legend.title = element_text(family = "Roboto Condensed"),
+        plot.margin = margin(b = 1, r = 25, l = 25),
+  ) +
+  
+  # add text areas to plot
+  plot_annotation(
+    title = str_to_upper("The proportion of green space deprived neighborhoods across the English regions"),
+    subtitle = ("\nFriends of the Earth analysed green space depivation across England. The most green space deprived neighborhoods (i.e. msoas) are rated E, the least are rated A.
+      
+Urgent action is needed to address green space deprivation in neighborhoods rated D and E.
+      
+The proportion of neighborhoods where urgent action is needed is much higher in London than elsewhere in England.
+      "),
+
+    caption = "Source: Friends of the Earth - England's Green Space Gap",
+    
+    # custom theme settings for text areas
+    theme = theme(text = element_text(family = "Roboto Condensed"),
+                  plot.background = element_rect(fill = bg_colour, colour = NA))
+  )
+
+ggsave("prop_neigh_gs_dep.png", width = 10, height = 5, units = "in")
+```
+
+```{r}
+# define the worst greenspace deprivation as rating D or E
+worst_gs_dep_counts_1 <- worst_gs_dep_counts %>% 
+  arrange(desc(num_D_or_E))
+
+# add in column ranking by regions by worst MSOA ratings
+region_ratings_counts_1 <- region_ratings_counts %>% 
+  left_join(worst_gs_dep_counts) %>% 
+  mutate(region_short = factor(region_short, 
+                               levels = pull(worst_gs_dep_counts_1, 
+                                             region_short)),
+         green_space_deprivation_rating = factor(green_space_deprivation_rating,
+                                                 levels = c("E", "D", "C", 
+                                                            "B", "A"))) %>%
+  # needed to reorder ratings in each column
+  arrange(green_space_deprivation_rating)
+
+
+
+alpha_hr <- 0.25
+
+waf <- region_ratings_counts_1 %>% 
+  ggplot(aes(fill = green_space_deprivation_rating, values = n / 10)) +
+  expand_limits(x=c(0,0), y=c(0,0)) +
+  coord_equal() +
+  theme_ipsum_rc(grid="") +
+  theme_enhance_waffle() +
+  labs(fill = NULL, colour = NULL)
+
+  
+  
+waf + geom_waffle(n_rows = 5, size = 0.5,
+                  flip = TRUE,
+                  colour = bg_colour) +
+  
+  scale_fill_manual(values = c(pal[1], pal[2], 
+                               alpha(pal[3], alpha_hr), 
+                               alpha(pal[4], alpha_hr), 
+                               alpha(pal[5], alpha_hr))) +
+  
+  # immitate a bar chart through facetting
+  facet_wrap(~region_short, 
+             nrow = 1,
+             strip.position = "bottom") +
+  
+  # format legend
+  labs(fill = "Green space\ndeprivation\nrating") +
+  guides(fill = guide_legend(reverse = TRUE)) +
+  
+  # theme settings for plot area from example code
+  theme(panel.spacing.x = unit(0, "npc"),
+        strip.text.x = element_text(hjust = 0.5)) +
+  
+  # custom theme settings for plot area
+  theme(plot.background = element_rect(fill = bg_colour, colour = NA),
+        text = element_text(family = "Roboto Condensed"),
+        legend.title = element_text(family = "Roboto Condensed"),
+        plot.margin = margin(b = 1, r = 25, l = 25),
+  ) +
+  
+  # add text areas to plot
+  plot_annotation(
+    title = str_to_upper("Green space deprived neighborhoods across the English regions"),
+    subtitle = "\nFriends of the Earth analysed green space deprivation across England. 
+They gave the most green space deprived neighborhoods (i.e. msoas) a rating of E, and the least a rating of A.
+Urgent action is needed to address green space deprivation in neighborhoods rated D and E.
+The number of neighborhoods where urgent action is needed is much higher in London than in other regions of England.
+      ",
+
+    caption = "Note: each square represents 10 neighborhoods    |   Source: Friends of the Earth - England's Green Space Gap",
+    
+    # custom theme settings for text areas
+    theme = theme(text = element_text(family = "Roboto Condensed"),
+                  plot.background = element_rect(fill = bg_colour, colour = NA))
+  )
+
+ggsave("num_neigh_gs_dep.png", width = 10, height = 5, units = "in")
+```
