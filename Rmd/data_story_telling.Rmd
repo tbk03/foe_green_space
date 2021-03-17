@@ -123,6 +123,8 @@ region_ratings_counts <- region_ratings_counts %>%
 
 ```
 
+<https://github.com/cxinya/tidy-tuesday/blob/main/2021_week-11_bechdel/2021_week-11_bechdel.R>
+
 ```{r}
 library(viridisLite)
 library(ggtext)

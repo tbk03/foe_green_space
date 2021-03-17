@@ -41,3 +41,5 @@ to include
     -   The datasets used
 
     -   A summary of findings / conclusions
+
+    -   Other notes

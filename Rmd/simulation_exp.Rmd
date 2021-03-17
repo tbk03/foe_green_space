@@ -1,0 +1,144 @@
+---
+title: "Green space and ethnic background: simulation experiment"
+output: html_notebook
+---
+
+
+```{r}
+library(tidyverse)
+
+theme_set(theme_light())
+```
+
+
+```{r project_functions}
+source("../R_code/green_space_functions.R")
+```
+
+```{r}
+# read in data from excel
+foe_green_space <- read_foe_data()
+
+# focus on variables of interest
+foe_green_space_focus <- foe_green_space %>% 
+  select(msoa_code, msoa_name, green_space_deprivation_rating,
+         total_pop_from_ethnicity_data, bame_pop,
+         green_space_area_per_capita, pcnt_pop_with_go_space_access)
+
+gardens <- read_ons_garden_data()
+
+# focus on variables of interest
+gardens_focus <- gardens %>% 
+  
+  # remove columns relating to house and flats, 
+  # leaving columns relating to all households 
+  # (i.e the total for both houses and flats)
+  
+  select(!(country_code:lad_name)) %>% 
+  select(!(address_count_9:average_number_of_flats_sharing_a_garden)) %>% 
+  rename(add_count = address_count_22,
+         add_with_gar_count = adress_with_private_outdoor_space_count_23,
+         total_gar_area = private_outdoor_space_total_area_m2_24,
+         perc_add_with_gar = percentage_of_adresses_with_private_outdoor_space_25, 
+         ave_gar_size = average_size_of_private_outdoor_space_m2_26)
+
+# join green space and gardens datasets
+gs_gardens <- foe_green_space_focus %>% 
+  inner_join(gardens_focus)
+```
+```{r}
+simulate_msoa_pop <- function(pop, prop_bame_pop, perc_gar, perc_gs_access){
+  tibble(bame = rbernoulli(pop, p = prop_bame_pop),
+         garden = rbernoulli(pop, p = perc_gar),
+         gs_access = rbernoulli(pop, p = perc_gs_access)
+         )
+}
+
+
+gs_gardens_focus <- gs_gardens %>% 
+  select(-msoa_name, -green_space_deprivation_rating,
+         -add_count, -add_with_gar_count, -total_gar_area) %>% 
+  mutate(prop_bame_pop = bame_pop / total_pop_from_ethnicity_data,
+         .after = bame_pop)
+
+# simulate a population
+sim_pop <- gs_gardens_focus %>% 
+  mutate(simulated_pop = pmap(list(total_pop_from_ethnicity_data, 
+                                   prop_bame_pop,
+                                   perc_add_with_gar,
+                                   pcnt_pop_with_go_space_access / 100),
+                               ~simulate_msoa_pop(..1, ..2, ..3, ..4))) %>% 
+  unnest(simulated_pop)
+
+# confirm summary stats for simulated population align with the actual data
+sim_pop %>% 
+  group_by(msoa_code) %>% 
+  summarise(prop_bame = mean(bame),
+            perc_gar = mean(garden),
+            perc_gs_access = mean(gs_access)) %>% 
+  left_join(gs_gardens_focus) %>% 
+  mutate(bame_diff = prop_bame_pop - prop_bame,
+         gar_diff = perc_add_with_gar - perc_gar,
+         gs_diff = (pcnt_pop_with_go_space_access / 100) - perc_gs_access) %>% 
+  summarise(across(ends_with("_diff"), mean))
+```
+
+```{r}
+sample_prop_for_plot <-  0.1
+sample_n_for_plot <- nrow(sim_pop) * sample_prop_for_plot
+
+sim_pop %>% 
+  mutate(green_space_area_per_capita = green_space_area_per_capita + 1) %>% 
+  sample_n(sample_n_for_plot) %>% 
+  ggplot(aes(x = green_space_area_per_capita,
+             colour = bame)) +
+  geom_density() +
+  scale_x_log10()
+
+sim_pop %>% 
+  sample_n(sample_n_for_plot) %>% 
+  ggplot(aes(x = ave_gar_size,
+             colour = bame)) +
+  geom_density() +
+  scale_x_log10()
+
+sim_pop %>% 
+  sample_n(sample_n_for_plot) %>% 
+  ggplot(aes(x = pcnt_pop_with_go_space_access / 100,
+             colour = bame)) +
+  geom_density()
+
+sim_pop %>% 
+  sample_n(sample_n_for_plot) %>% 
+  ggplot(aes(x = perc_add_with_gar,
+             colour = bame)) +
+  geom_density()
+```
+```{r}
+gar_plot <- function(df, .bame, x, y){
+
+df %>% 
+  filter(bame == .bame) %>% 
+  sample_n(100000) %>% 
+    
+  ggplot(aes({{x}}, {{y}} + 1)) +
+  geom_hex(aes(fill = ..ndensity..), colour = "grey50", bins = 50) + #aes(fill=..density..)
+  scale_fill_viridis_c(option = "magma") +
+                            
+  scale_y_log10()
+}
+
+sim_pop <- sim_pop %>% 
+  filter(ave_gar_size < 5000)
+
+gar_plot(sim_pop, .bame = FALSE, x = perc_add_with_gar, y = ave_gar_size)
+
+gar_plot(sim_pop, 
+         .bame = TRUE, x = perc_add_with_gar, y = ave_gar_size)
+
+gar_plot(sim_pop, .bame = FALSE, x = pcnt_pop_with_go_space_access, y = green_space_area_per_capita)
+
+gar_plot(sim_pop, .bame = TRUE, x = pcnt_pop_with_go_space_access, y = green_space_area_per_capita)
+  
+```
+
