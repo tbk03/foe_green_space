@@ -146,8 +146,8 @@ plot_gs_density(sim_pop, x = perc_add_with_gar, log_scale = FALSE,
                 n = 100000, strat_var = bame)
 
 
-
-sample_sim_pop(sim_pop, n = 100000, strat_var = bame) %>% 
+# 
+# sample_sim_pop(sim_pop, n = 100000, strat_var = bame) %>% 
 
 
 ```
@@ -213,5 +213,55 @@ sim_pop %>%
   geom_quasirandom(aes(colour = gs_access), alpha = 0.3) +
   geom_violin(alpha = 0.1, draw_quantiles = c(0.25, 0.5, 0.75)) +
   facet_wrap(~ bame)
+```
+
+```{r}
+library(ggstatsplot)
+gs_gardens_focus
+
+fit <- lm(log(green_space_area_per_capita + 1) ~ log(ave_gar_size + 1) + total_pop_from_ethnicity_data, data = gs_gardens_focus)
+
+ggcoefstats(fit)
+
+ggcorrmat(gs_gardens_focus, colors = c("#B2182B", "white", "#4D4D4D"))
+
+
+gs_gardens_focus <- gs_gardens_focus %>% 
+  mutate(log_green_space_area_per_capita = log(green_space_area_per_capita + 1),
+         log_ave_gar_size = log(ave_gar_size + 1))
+
+ggscatterstats(gs_gardens_focus %>% filter(green_space_area_per_capita < 25000), 
+               x = log_green_space_area_per_capita,
+               y = log_ave_gar_size)
+
+
+```
+
+```{r}
+library(GGally)
+
+ggpairs(gs_gardens_focus %>% 
+          select(-msoa_code) %>% 
+          sample_n(1000),
+        mapping = aes(alpha = 0.1),
+        progress = FALSE)
+```
+```{r}
+library(ggfortify)
+
+fit <- lm(log(green_space_area_per_capita + 1) ~ log(ave_gar_size + 1), data = gs_gardens_focus)
+
+autoplot(fit)
+
+fit_1 <- rstanarm::stan_glm(log(green_space_area_per_capita + 1) ~ log(ave_gar_size + 1), data = gs_gardens_focus)
+
+plot(fit)
+plot(fit_1)
+
+pca_res <- prcomp(gs_gardens_focus %>%
+         select(-msoa_code)
+         )
+
+autoplot(pca_res)
 ```
 
