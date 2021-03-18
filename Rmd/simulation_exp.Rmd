@@ -7,6 +7,9 @@ output: html_notebook
 ```{r}
 library(tidyverse)
 
+library(ggbeeswarm)
+library(ggpointdensity)
+
 theme_set(theme_light())
 ```
 
@@ -45,6 +48,12 @@ gardens_focus <- gardens %>%
 # join green space and gardens datasets
 gs_gardens <- foe_green_space_focus %>% 
   inner_join(gardens_focus)
+
+# data cleaning
+gs_gardens <- gs_gardens %>% 
+  mutate(perc_pop_with_gs_access = pcnt_pop_with_go_space_access / 100,
+         .keep = "unused") %>% 
+  filter(ave_gar_size < 5000)
 ```
 ```{r}
 simulate_msoa_pop <- function(pop, prop_bame_pop, perc_gar, perc_gs_access){
@@ -66,7 +75,7 @@ sim_pop <- gs_gardens_focus %>%
   mutate(simulated_pop = pmap(list(total_pop_from_ethnicity_data, 
                                    prop_bame_pop,
                                    perc_add_with_gar,
-                                   pcnt_pop_with_go_space_access / 100),
+                                   perc_pop_with_gs_access),
                                ~simulate_msoa_pop(..1, ..2, ..3, ..4))) %>% 
   unnest(simulated_pop)
 
@@ -79,66 +88,130 @@ sim_pop %>%
   left_join(gs_gardens_focus) %>% 
   mutate(bame_diff = prop_bame_pop - prop_bame,
          gar_diff = perc_add_with_gar - perc_gar,
-         gs_diff = (pcnt_pop_with_go_space_access / 100) - perc_gs_access) %>% 
+         gs_diff = (perc_pop_with_gs_access) - perc_gs_access) %>% 
   summarise(across(ends_with("_diff"), mean))
 ```
 
 ```{r}
-sample_prop_for_plot <-  0.1
-sample_n_for_plot <- nrow(sim_pop) * sample_prop_for_plot
 
-sim_pop %>% 
-  mutate(green_space_area_per_capita = green_space_area_per_capita + 1) %>% 
-  sample_n(sample_n_for_plot) %>% 
-  ggplot(aes(x = green_space_area_per_capita,
-             colour = bame)) +
-  geom_density() +
-  scale_x_log10()
-
-sim_pop %>% 
-  sample_n(sample_n_for_plot) %>% 
-  ggplot(aes(x = ave_gar_size,
-             colour = bame)) +
-  geom_density() +
-  scale_x_log10()
-
-sim_pop %>% 
-  sample_n(sample_n_for_plot) %>% 
-  ggplot(aes(x = pcnt_pop_with_go_space_access / 100,
-             colour = bame)) +
-  geom_density()
-
-sim_pop %>% 
-  sample_n(sample_n_for_plot) %>% 
-  ggplot(aes(x = perc_add_with_gar,
-             colour = bame)) +
-  geom_density()
-```
-```{r}
-gar_plot <- function(df, .bame, x, y){
-
-df %>% 
-  filter(bame == .bame) %>% 
-  sample_n(100000) %>% 
-    
-  ggplot(aes({{x}}, {{y}} + 1)) +
-  geom_hex(aes(fill = ..ndensity..), colour = "grey50", bins = 50) + #aes(fill=..density..)
-  scale_fill_viridis_c(option = "magma") +
-                            
-  scale_y_log10()
+sample_sim_pop <- function(df, n = 10, strat_var = NULL){
+  res <- df %>% 
+    group_by({{strat_var}}) %>% 
+    sample_n(n)
+  
+  return(res)
 }
 
-sim_pop <- sim_pop %>% 
-  filter(ave_gar_size < 5000)
+pre_process_for_log_scale <-  function(df, x, log_scale){
 
-gar_plot(sim_pop, .bame = FALSE, x = perc_add_with_gar, y = ave_gar_size)
+  df %>% 
+    {if (log_scale) 
+      mutate(., {{x}} := {{x}} + 1)
+      else .}
+}
 
-gar_plot(sim_pop, 
-         .bame = TRUE, x = perc_add_with_gar, y = ave_gar_size)
+add_log_scale_x <- function(log_scale){
+  if (log_scale)
+    scale_x_log10()
+  else NULL
+}
 
-gar_plot(sim_pop, .bame = FALSE, x = pcnt_pop_with_go_space_access, y = green_space_area_per_capita)
-
-gar_plot(sim_pop, .bame = TRUE, x = pcnt_pop_with_go_space_access, y = green_space_area_per_capita)
+plot_gs_density <- function(df, x, log_scale = FALSE, ...){
+  df %>%
+    
+    pre_process_for_log_scale({{x}}, log_scale) %>% 
+    
+    sample_sim_pop(...) %>% 
+    
+    ggplot(aes(x = {{x}},
+               fill = bame)) +
+    
+    geom_density(alpha = 0.3) +
+    
+    add_log_scale_x(log_scale)
+    
   
+}
+
+plot_gs_density(sim_pop, x = green_space_area_per_capita, log_scale = TRUE,
+                n = 100000, strat_var = bame)
+
+plot_gs_density(sim_pop, x = ave_gar_size, log_scale = TRUE,
+                n = 100000, strat_var = bame)
+
+plot_gs_density(sim_pop, x = perc_pop_with_gs_access, log_scale = FALSE,
+                n = 100000, strat_var = bame)
+
+plot_gs_density(sim_pop, x = perc_add_with_gar, log_scale = FALSE,
+                n = 100000, strat_var = bame)
+
+
+
+sample_sim_pop(sim_pop, n = 100000, strat_var = bame) %>% 
+
+
+```
+
+```{r}
+gar_plot <- function(df, x, y, n, strat_var, ...){
+  
+  df %>% 
+    
+    sample_sim_pop(n, {{strat_var}}) %>%
+    
+    ggplot(aes({{x}}, {{y}} + 1)) +
+    geom_pointdensity(alpha = 0.5) +  
+    #geom_hex(aes(fill = ..ndensity..), colour = "grey50", bins = 50) + #aes(fill=..density..)
+    scale_colour_viridis_c(option = "magma") +
+    
+    scale_y_log10() +
+    
+    facet_wrap(vars({{strat_var}}))
+}
+
+
+
+gar_plot(sim_pop %>% filter(perc_add_with_gar >= 0.5), 
+         x = perc_add_with_gar, y = ave_gar_size, 
+         strat_var = bame, n = 10000)
+
+gar_plot(sim_pop, x = perc_pop_with_gs_access, y = green_space_area_per_capita, strat_var = bame, n = 10000)
+
+  
+```
+```{r}
+sim_pop %>%
+  sample_n(10000) %>% 
+  filter(green_space_area_per_capita < 5000) %>% 
+  ggplot(aes(garden, green_space_area_per_capita + 1)) +
+  geom_quasirandom(aes(colour = garden), alpha = 0.3) +
+  geom_violin(alpha = 0.1, draw_quantiles = c(0.25, 0.5, 0.75)) +
+  scale_y_log10() +
+  facet_wrap(~bame)
+
+sim_pop %>%
+  sample_n(10000) %>% 
+  ggplot(aes(garden, pcnt_pop_with_go_space_access)) +
+  geom_quasirandom(aes(colour = garden), alpha = 0.3) +
+  geom_violin(alpha = 0.1, draw_quantiles = c(0.25, 0.5, 0.75)) +
+  facet_wrap(~bame)
+
+```
+```{r}
+sim_pop %>%
+  sample_n(10000) %>% 
+  filter(green_space_area_per_capita < 5000) %>% 
+  ggplot(aes(gs_access, ave_gar_size + 1)) +
+  geom_quasirandom(aes(colour = gs_access), alpha = 0.3) +
+  geom_violin(alpha = 0.1, draw_quantiles = c(0.25, 0.5, 0.75)) +
+  scale_y_log10() +
+  facet_wrap(~ bame)
+
+sim_pop %>%
+  sample_n(10000) %>% 
+  ggplot(aes(gs_access, perc_add_with_gar)) +
+  geom_quasirandom(aes(colour = gs_access), alpha = 0.3) +
+  geom_violin(alpha = 0.1, draw_quantiles = c(0.25, 0.5, 0.75)) +
+  facet_wrap(~ bame)
 ```
 
