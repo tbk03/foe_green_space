@@ -1,0 +1,60 @@
+---
+title: "Green space deprivation: Identifying shared challenges across English Local Authorities"
+output: html_notebook
+---
+
+## Introduction
+
+In this notebook I explore and analyse public available green space data published by the ONS and Friends of the Earth. These datasets form part of a growing evidence base which details the extent of green space deprivation across the UK. The nature and scope of green space deprivation has been previously analysed by:
+
+-   Friends of the Earth - focusing on the neighborhood scale (England only) ...
+
+-   The ONS - highlighting ...
+
+-   Fields trust?
+
+Data on the extent of green space deprivation, at various geographic scales, is readily available. However, detailed policy research identifying the implications of this data for specific local authorities has (to the best of my knowledge) yet to be published.
+
+-   exploratory data analysis
+
+-   unsupervised statistical learning
+
+### Objectives
+
+-   Address the following (research) questions:
+
+    -   Can groups of Local Authorities facing similar
+
+-   ...
+
+### The anticipated audience of the notebook
+
+-   ...
+
+-   ...
+
+### Structure of the notebook
+
+1.  ....
+
+2.  .....
+
+### The datasets used
+
+All data files are located at ...
+
+| File Name | Variable name in this notebook | Notes | More details |
+|-----------|--------------------------------|-------|--------------|
+|           |                                |       |              |
+|           |                                |       |              |
+|           |                                |       |              |
+
+### A summary of findings / conclusions
+
+### Other notes / reflections 
+
+# Code
+
+```{r, echo=FALSE}
+library(tidyverse)
+```
