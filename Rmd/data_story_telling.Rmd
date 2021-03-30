@@ -1,6 +1,8 @@
 ---
 title: "Data story telling example"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
 ```{r}
@@ -125,7 +127,7 @@ region_ratings_counts <- region_ratings_counts %>%
 
 <https://github.com/cxinya/tidy-tuesday/blob/main/2021_week-11_bechdel/2021_week-11_bechdel.R>
 
-```{r}
+```{r, fig.width=10, fig.height=5}
 library(viridisLite)
 library(ggtext)
 
@@ -193,7 +195,7 @@ The proportion of neighborhoods where urgent action is needed is much higher in 
 ggsave("prop_neigh_gs_dep.png", width = 10, height = 5, units = "in")
 ```
 
-```{r}
+```{r, fig.width=10, fig.height=5}
 # define the worst greenspace deprivation as rating D or E
 worst_gs_dep_counts_1 <- worst_gs_dep_counts %>% 
   arrange(desc(num_D_or_E))
